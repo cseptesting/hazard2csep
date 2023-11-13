@@ -1,0 +1,9 @@
+name: oq2pycsep
+channels:
+    - conda-forge
+    - defaults
+dependencies:
+    - numpy
+    - pycsep
+    - openquake.engine
+
