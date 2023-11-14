@@ -1,3 +1,5 @@
 numpy
 pycsep
 openquake.engine
+pandas
+geopandas

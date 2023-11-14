@@ -12,6 +12,7 @@ import pickle
 from os import path
 from shapely.geometry import Polygon, Point, MultiPoint
 
+
 def cleaner_range(start, end, h):
     """ Returns array holding bin edges that doesn't contain floating point wander.
 
@@ -201,8 +202,10 @@ def project2mesh(mesh_fn, Cells, Magnitudes, Rates, SrcType):
     points = gpd.GeoDataFrame(df, geometry='coords')
     polygons = []
     for i in data:
-        polygons.append(Polygon([(i[0], i[2]), (i[1]-0.0000001, i[2]),
-                                 (i[1]-0.0000001, i[3]-0.0000001), (i[0], i[3]-0.0000001)]))
+        polygons.append(Polygon([(i[0], i[2]),
+                                 (i[1]-0.0000001, i[2]),
+                                 (i[1]-0.0000001, i[3]-0.0000001),
+                                 (i[0], i[3]-0.0000001)]))
 
     grid = gpd.GeoDataFrame({'geometry': polygons})
     points_in_poly = gpd.tools.sjoin(points, grid, predicate='within', how='left')
