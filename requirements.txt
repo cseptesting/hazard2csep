@@ -3,3 +3,6 @@ pycsep
 openquake.engine
 pandas
 geopandas
+matplotlib
+cartopy
+shapely

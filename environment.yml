@@ -1,4 +1,4 @@
-name: oq2pycsep
+name: oq2csep
 channels:
     - conda-forge
     - defaults
@@ -8,3 +8,6 @@ dependencies:
     - openquake.engine
     - pandas
     - geopandas
+    - matplotlib
+    - cartopy
+    - shapely

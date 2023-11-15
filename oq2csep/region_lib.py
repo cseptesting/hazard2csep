@@ -1,26 +1,24 @@
 import geopandas as gpd
 import pandas as pd
-import os
-from os.path import join, abspath, normpath
-import numpy
 from openquake.hazardlib import nrml, sourceconverter
 from openquake.hazardlib.source.complex_fault import ComplexFaultSource
 from openquake.hazardlib.source.simple_fault import SimpleFaultSource
 from openquake.hazardlib.source.area import AreaSource
 from openquake.hazardlib.source.point import PointSource
 from openquake.hazardlib.source.multi_point import MultiPointSource
-from openquake.hazardlib.geo.surface import ComplexFaultSurface, \
-    SimpleFaultSurface
+from openquake.hazardlib.geo.surface import ComplexFaultSurface
 from openquake.hazardlib.geo.line import Line
 import numpy as np
 import matplotlib.pyplot as plt
-import pickle
-from os import path
-import matplotlib.pyplot as plt
 import shapely.geometry
-import oq2csep
 import csep
-import xml.etree.ElementTree as ET
+import xml.etree.ElementTree as etree
+import cartopy
+from csep.core.regions import CartesianGrid2D
+import logging
+
+
+log = logging.getLogger('oq2csepLogger')
 
 
 def cleaner_range(start, end, h):
@@ -28,7 +26,7 @@ def cleaner_range(start, end, h):
     wander.
 
     Floating point wander can occur when repeatedly adding floating point
-    numbers together. The errors propogate and become worse over the sum.
+    numbers together. The errors propagate and become worse over the sum.
     This function generates the
     values on an integer grid and converts back to floating point numbers
      through multiplication.
@@ -69,53 +67,56 @@ def parse_source_model(fname):
         fname = [fname]
     try:
         src_model_nrml = nrml.read_source_models(fname, parser)
-        src_model = list(src_model_nrml)
+        src_models = list(src_model_nrml)
 
     except ValueError:
+        src_models = []
+        for file_ in fname:
+            log.info('Fixing deprecated fault geometries')
+            tree = etree.parse(file_)
+            root = tree.getroot()
+            xmlns = '{http://openquake.org/xmlns/nrml/0.4}'
+            xmlns_gml = "{http://www.opengis.net/gml}"
+            complexfaultsrcs = root[0].findall(f'{xmlns}complexFaultSource')
+            for src in complexfaultsrcs:
+                geom = src.find(f'{xmlns}complexFaultGeometry')
+                top_edge = geom.find(f'{xmlns}faultTopEdge')
+                top_ls = top_edge.find(f'{xmlns_gml}LineString')
+                top_pos = top_ls.find(f'{xmlns_gml}posList')
+                top_line = Line.from_coo(np.fromstring(top_pos.text,
+                                                       sep=' ').reshape(-1, 3))
 
-        print('Fixing fault deprecated geometries')
-        tree = ET.parse(fname)
-        root = tree.getroot()
-        xmlns = '{http://openquake.org/xmlns/nrml/0.4}'
-        xmlns_gml = "{http://www.opengis.net/gml}"
-        complexfaultsrcs = root[0].findall(f'{xmlns}complexFaultSource')
-        for src in complexfaultsrcs:
-            geom = src.find(f'{xmlns}complexFaultGeometry')
-            top_edge = geom.find(f'{xmlns}faultTopEdge')
-            top_ls = top_edge.find(f'{xmlns_gml}LineString')
-            top_pos = top_ls.find(f'{xmlns_gml}posList')
-            top_line = Line.from_coo(np.fromstring(top_pos.text,
-                                                   sep=' ').reshape(-1, 3))
+                bottom_edge = geom.find(f'{xmlns}faultBottomEdge')
+                bottom_ls = bottom_edge.find(f'{xmlns_gml}LineString')
+                bottom_pos = bottom_ls.find(f'{xmlns_gml}posList')
+                bottom_line = Line.from_coo(np.fromstring(bottom_pos.text,
+                                                          sep=' ').reshape(-1, 3))
 
-            bottom_edge = geom.find(f'{xmlns}faultBottomEdge')
-            bottom_ls = bottom_edge.find(f'{xmlns_gml}LineString')
-            bottom_pos = bottom_ls.find(f'{xmlns_gml}posList')
-            bottom_line = Line.from_coo(np.fromstring(bottom_pos.text,
-                                                      sep=' ').reshape(-1, 3))
+                try:
+                    ComplexFaultSurface.check_aki_richards_convention(
+                        [top_line, bottom_line])
 
-            try:
-                ComplexFaultSurface.check_aki_richards_convention(
-                    [top_line, bottom_line])
+                except ValueError:
+                    for edge_type in ['faultTopEdge', 'intermediateEdge',
+                                      'faultBottomEdge']:
+                        edge = geom.find(f'{xmlns}{edge_type}')
+                        if edge:
+                            ls = edge.find(f'{xmlns_gml}LineString')
+                            pos = ls.find(f'{xmlns_gml}posList')
+                            array = np.fromstring(pos.text, sep=' ').reshape(-1, 3)
+                            array = np.flipud(array)
+                            pos.text = ' '.join(array.ravel().astype(str))
 
-            except ValueError:
-                for edge_type in ['faultTopEdge', 'intermediateEdge',
-                                  'faultBottomEdge']:
-                    edge = geom.find(f'{xmlns}{edge_type}')
-                    if edge:
-                        ls = edge.find(f'{xmlns_gml}LineString')
-                        pos = ls.find(f'{xmlns_gml}posList')
-                        array = np.fromstring(pos.text, sep=' ').reshape(-1, 3)
-                        array = np.flipud(array)
-                        pos.text = ' '.join(array.ravel().astype(str))
+            vparser = nrml.ValidatingXmlParser(nrml.validators, stop=None)
+            src_model = vparser.parse_bytes(etree.tostring(root))
+            xmlns = src_model.tag.split('}')[0][1:]
+            src_model['xmlns'] = xmlns
+            src_model['xmlns:gml'] = xmlns_gml
+            output = nrml.get_source_model_04(src_model[0], fname,
+                                              converter=parser)
+            src_models.append(output)
 
-        vparser = nrml.ValidatingXmlParser(nrml.validators, stop=None)
-        a = vparser.parse_bytes(ET.tostring(root))
-        xmlns = a.tag.split('}')[0][1:]
-        a['xmlns'] = xmlns
-        a['xmlns:gml'] = xmlns_gml
-        src_model = nrml.get_source_model_04(a[0], fname, converter=parser)
-
-    return src_model
+    return src_models
 
 
 def parse_srcs(source_model, trt=None):
@@ -138,7 +139,7 @@ def parse_srcs(source_model, trt=None):
                 sources.append(src)
 
     src_types = set([i.__class__.__name__ for i in sources])
-    print(f'Found source types: {src_types} ')
+    log.info(f'Source types found: {src_types} ')
     return sources
 
 
@@ -198,7 +199,7 @@ def parse_region(sources, dh=0.1):
          (i[0], i[1] + dh)]) for i in grid]
     box_geodf = gpd.GeoSeries(box_polygons)
 
-    # Initilize array of active CSEP cells
+    # Initialize array of active CSEP cells
     tag_cells = np.zeros(len(grid))
 
     # Check which cells are touched by Polygon-type Sources
@@ -228,44 +229,73 @@ def parse_region(sources, dh=0.1):
     if tag_cells.any():
         grid = grid[tag_cells]
 
-    csep_region = csep.regions.CartesianGrid2D.from_origins(grid, dh=dh)
+    csep_region = CartesianGrid2D.from_origins(grid, dh=dh)
 
     return grid, csep_region
 
 
-if __name__ == '__main__':
+def intersect_region(region1, *args):
+    """
+    Intersects multiple regions to get the common cells between them.
 
-    pkg_path = oq2csep.__path__[0]
-    path_eshm20_main = normpath(join(
-        pkg_path, '..', 'examples', 'eshm20',
-        'oq_computational',
-        'oq_configuration_eshm20_v12e_region_main',
-        'source_models'))
+    :param region1: (str, CartesianGrid2D) path to region file or
+     CartesianGrid2D object
+    :param args: (list, str, CartesianGrid2D) paths to region files or
+     CartesianGrid2D objects
+    """
+    regions = args
+    other_ = []
 
-    # path = normpath(join(pkg_path, '..', 'examples', 'eshm13',
-    #                      'SHARE_OQ_input_20140807', 'seifa_model.xml'))
-    # path = normpath(join(pkg_path, '..', 'examples', 'eshm13',
-    #                           'SHARE_OQ_input_20140807',
-    #                           'faults_backg_source_model.xml'))
-    # path = normpath(join(pkg_path, '..', 'examples', 'eshm20',
-    #                       'oq_computational',
-    #                       'oq_configuration_eshm20_v12e_region_main',
-    #                       'source_models',
-    #                       'interface_v12b',
-    #                       'CaA_IF2222222_M40.xml'))
+    if isinstance(region1, str):
+        origins = np.loadtxt(region1)
+        region1 = CartesianGrid2D.from_origins(origins)
+    for reg in regions:
+        if isinstance(reg, str):
+            origins = np.loadtxt(reg)
+            reg = CartesianGrid2D.from_origins(origins)
+        other_.append(reg)
 
-    path_ssm = join(path_eshm20_main, 'ssm_v09',
-                    'seis_ver12b_fMthr_asm_ver12e_winGT_fs017_agbrs_point.xml')
+    reg1_poly = [shapely.geometry.Polygon(
+        [i.points[0], i.points[3], i.points[2], i.points[1]])
+                    for i in region1.polygons]
+    reg1_gdf = gpd.GeoSeries(reg1_poly)
 
-    path_fsm = join(path_eshm20_main, 'fsm_v09',
-                    'fs_ver09e_model_aGR_SRA_ML_fMthr.xml')
+    tag_cells = np.ones(len(reg1_poly))
+    for reg2 in other_:
+        reg2_points = [shapely.geometry.Point(i) for i in reg2.midpoints()]
+        points = gpd.GeoDataFrame(geometry=gpd.GeoSeries(reg2_points))
+        points_in_reg = gpd.tools.sjoin(points,
+                                        gpd.GeoDataFrame(geometry=reg1_gdf),
+                                        predicate='within',
+                                        how='left')
 
-    path = [path_ssm, path_fsm]
-    src_model = parse_source_model(path)
-    srcs = parse_srcs(src_model)
-    g, reg = parse_region(srcs)
+        idxs = np.unique(points_in_reg.index_right.to_numpy())
+        idxs = idxs[~np.isnan(idxs)].astype(int)
+
+        tag_from_points = np.zeros(len(reg1_poly))
+        tag_from_points[idxs] = 1
+        tag_cells = np.logical_and(tag_cells, tag_from_points)
+
+    return (region1.origins()[tag_cells],
+            CartesianGrid2D.from_origins(region1.origins()[tag_cells]))
 
 
-    plt.plot(*g.T, '.')
-    plt.show()
+def plot_region(grid, fname):
+
+    fig = plt.figure()
+    ax = fig.add_subplot(111, projection=cartopy.crs.PlateCarree())
+    dh = np.diff(np.unique(grid[:, 0])).max()
+    extent = [grid[:, 0].min() - dh, grid[:, 0].max() + dh,
+              grid[:, 1].min() - dh, grid[:, 1].max() + dh]
+    ax = csep.utils.plots.plot_basemap(ax=ax,
+                                       extent=extent,
+                                       basemap='ESRI_terrain')
+    ax.plot(*grid.T, '.', color='red')
+    ax.gridlines(draw_labels=True)
+    if fname:
+        fig.savefig(fname)
+    else:
+        plt.show()
+
+
 
