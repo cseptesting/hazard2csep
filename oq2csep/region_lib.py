@@ -170,6 +170,7 @@ def intersect_region(region1, *args):
 
     tag_cells = np.ones(len(reg1_poly))
     for reg2 in other_:
+
         reg2_points = [shapely.geometry.Point(i) for i in reg2.midpoints()]
         points = gpd.GeoDataFrame(geometry=gpd.GeoSeries(reg2_points))
         points_in_reg = gpd.tools.sjoin(points,

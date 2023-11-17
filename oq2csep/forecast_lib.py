@@ -1,23 +1,25 @@
-import time
-import numpy
 import shapely
 from csep.core.regions import CartesianGrid2D
 from csep.core.forecasts import GriddedForecast
-from openquake.hazardlib import nrml, sourceconverter
 from openquake.hazardlib.source.complex_fault import ComplexFaultSource
 from openquake.hazardlib.source.simple_fault import SimpleFaultSource
 from openquake.hazardlib.source.area import AreaSource
 from openquake.hazardlib.source.point import PointSource
 from openquake.hazardlib.source.multi_point import MultiPointSource
-from openquake.hazardlib.geo.surface import ComplexFaultSurface, SimpleFaultSurface
+from openquake.hazardlib.geo.surface import (ComplexFaultSurface,
+                                             SimpleFaultSurface)
+from openquake.hazardlib.mfd import (TruncatedGRMFD, EvenlyDiscretizedMFD,
+                                     TaperedGRMFD)
+
 import numpy as np
+from oq2csep import region_lib
 import matplotlib.pyplot as plt
-import pickle
 from os import path
 from shapely.geometry import Polygon, Point, MultiPoint
 import geopandas as gpd
 import pandas as pd
 from oq2csep import sm_lib
+
 import logging
 log = logging.getLogger('oq2csepLogger')
 
@@ -64,11 +66,17 @@ def get_rate_complex_fault(sources):
     polygons = []
     rates = []
     for src in sources:
-        rupt_spacing = np.hstack([np.sum(np.diff(i.coo[:, :2], axis=0)**2, axis=1)**0.5 * 110.
-                        for i in src.edges]).min()
 
-        surf = ComplexFaultSurface.from_fault_data(src.edges,
-                                                   max(rupt_spacing, 5))
+        # Select automating spacing according to fault edges resolution
+        rupt_spacing = np.hstack([
+            np.sum(np.diff(i.coo[:, :2],axis=0)**2, axis=1)**0.5 * 110.
+            for i in src.edges]).min()
+
+
+        surf = ComplexFaultSurface.from_fault_data(
+            src.edges,
+            # minimum resolution of ~ dh/2
+            max(rupt_spacing, 5))
 
         rates.append(src.get_annual_occurrence_rates())
         polygons.append(shapely.geometry.Polygon(
@@ -90,248 +98,133 @@ def get_rate_area_source(sources):
     return polygons, rates
 
 
-def intersect_mesh(polys, csep_grid):
+def get_rate_point_source(sources):
 
-    poly2csep = []
-    for poly in polys:
-        idxs = np.argwhere(csep_grid.intersects(poly))
-        frac = np.array([csep_grid.iloc[i].intersection(poly).area
-                         for i in idxs]) / poly.area
-        poly2csep.append([idxs, frac])
+    points = []
+    rates = []
+    for src in sources:
+        point = Point(src.location.longitude, src.location.latitude)
+        rates.append(src.get_annual_occurrence_rates())
+        points.append(point)
 
-    return poly2csep
+    return points, rates
 
 
-def return_rates(sources, region=None):
+def get_rate_mpoint_source(sources):
 
+    points = []
+    rates = []
+    for src in sources:
+        for point_src in src:
+            point = Point(point_src.location.longitude,
+                          point_src.location.latitude)
+            rates.append(point_src.get_annual_occurrence_rates())
+            points.append(point)
+    return points, rates
+
+
+def intersect_geom2grid(geometries, csep_grid):
+
+    geom2grid_map = []
+    if all(isinstance(geom, Polygon) for geom in geometries):
+        for geom in geometries:
+            if isinstance(geom, Polygon):
+                # Get index map from polygons to cells
+                idxs = np.argwhere(csep_grid.intersects(geom))
+                # Get fraction of area of each cell intersecting polygon
+                frac = np.array([csep_grid.iloc[i].intersection(geom).area
+                                 for i in idxs]) / geom.area
+                geom2grid_map.append([idxs, frac])
+
+    elif all(isinstance(geom, Point) for geom in geometries):
+
+        points = gpd.GeoDataFrame(geometry=geometries)
+        # Get index map from point_sources to grid cells
+        points_in_reg = gpd.tools.sjoin(points, csep_grid,
+                                        predicate='within',
+                                        how='left')
+        # Return index or empty array if point lies outside grid
+        geom2grid_map = [[np.array(int(i)), 1] if not np.isnan(i)
+                         else [np.array([]), np.array([])]
+                         for i in points_in_reg.index_right]
+    else:
+        raise TypeError('Invalid or non-uniform geometry types')
+    return geom2grid_map
+
+
+def project_mfd(rates, magnitudes):
+
+    mags = np.array([i[0] for i in rates]).round(2)
+    rate = np.array([i[1] for i in rates])
+
+    idxs = np.digitize(mags, magnitudes)
+    grid_rates = np.zeros(len(magnitudes))
+    for i, r in zip(idxs, rate):
+        if i > 0:
+            grid_rates[i-1] += r
+
+    return grid_rates
+
+def return_rates(sources, region=None, min_mag=4.7, max_mag=8.1, dm=0.2):
+
+    magnitudes = sm_lib.cleaner_range(min_mag, max_mag, dm).round(1)
+
+
+    # Get source by type
     point_srcs = [src for src in sources if isinstance(src, PointSource)]
     mpoint_srcs = [src for src in sources if isinstance(src, MultiPointSource)]
     area_srcs = [src for src in sources if isinstance(src, AreaSource)]
     sf_srcs = [src for src in sources if isinstance(src, SimpleFaultSource)]
     cf_srcs = [src for src in sources if isinstance(src, ComplexFaultSource)]
 
+    # Load region
     if region:
         csep_grid = [shapely.geometry.Polygon(
             [i.points[0], i.points[3], i.points[2], i.points[1]])
             for i in region.polygons]
-        csep_gdf = gpd.GeoDataFrame({'geometry': csep_grid})
-    data = np.zeros(len(csep_grid))
+    # Make region if not given
+    else:
+        _, region = region_lib.parse_region(sources, fill=False)
+        csep_grid = [shapely.geometry.Polygon(
+            [i.points[0], i.points[3], i.points[2], i.points[1]])
+            for i in region.polygons]
 
-    source_groups = [sf_srcs, cf_srcs, area_srcs, point_srcs, mpoint_srcs]
-    funcs = [get_rate_simple_fault, get_rate_complex_fault, get_rate_area_source]
+    # Initialize forecast data
+    csep_gdf = gpd.GeoDataFrame({'geometry': csep_grid})
+    forecast_data = np.zeros((len(csep_grid), len(magnitudes)))  # todo magnitudes bins
 
-    for src_grp, func in zip(source_groups, funcs):
+    # Pair source type with functions
+    src2func_map = ((sf_srcs, get_rate_simple_fault),
+                    (cf_srcs, get_rate_complex_fault),
+                    (area_srcs, get_rate_area_source),
+                    (point_srcs, get_rate_point_source),
+                    (mpoint_srcs, get_rate_mpoint_source))
+
+    log.info(f'Processing {len(sources)} sources')
+    for src_grp, func in src2func_map:
+        # Get rates and polygons per src type
         polygons, rates = func(src_grp)
-        poly2csep = intersect_mesh(polygons, csep_gdf)
 
-        for i, ((idxs, frac), rates) in enumerate(zip(poly2csep, rates)):
-            if idxs.size > 0:
-                total_rate = np.sum([j for _, j in rates])
-                data[idxs] += total_rate * frac
+        if len(src_grp) > 0:
+            log.info(f'Intersecting {len(polygons)}'
+                     f' {src_grp[0].__class__.__name__} with CSEP grid')
+        poly2csep = intersect_geom2grid(polygons, csep_gdf)
 
-    a = GriddedForecast(data=data.reshape(-1,1), region=region, magnitudes=[5.])
+        # Allocate rates to grid cells
+        for i, ((indices, frac), rate) in enumerate(zip(poly2csep, rates)):
+            if indices.size > 0:
+                total_rate = np.sum([j for k, j in rate])  # todo
+
+                print([i[0] for i in rate])
+                total_rate = total_rate * frac
+                rate_mags = project_mfd(rate, magnitudes)
+
+                forecast_data[indices] += rate_mags
+
+    a = GriddedForecast(data=forecast_data.reshape(-1, 1), region=region,
+                        magnitudes=[5.])
     return a
 
-# def return_rates(src, MeshGrid):
-#
-#     rates = []
-#     magnitudes = []
-#     cells = []
-#     src_type = []
-#     if isinstance(src, SimpleFaultSource):
-#         try:
-#             surf1 = SimpleFaultSurface.from_fault_data(src.fault_trace,
-#                                                        src.upper_seismogenic_depth, src.lower_seismogenic_depth,
-#                                                        src.dip, rupt_spacing)
-#             trace = src.fault_trace
-#             trace.flip()
-#             surf2 = SimpleFaultSurface.from_fault_data(trace,
-#                                                        src.upper_seismogenic_depth, src.lower_seismogenic_depth,
-#                                                        src.dip, rupt_spacing)
-#         except:
-#             try:
-#                 surf1 = SimpleFaultSurface.from_fault_data(src.fault_trace,
-#                                                            src.upper_seismogenic_depth, src.lower_seismogenic_depth,
-#                                                            src.dip, 5)
-#                 trace = src.fault_trace
-#                 trace.flip()
-#                 surf2 = SimpleFaultSurface.from_fault_data(src.fault_trace.flip(),
-#                                                            src.upper_seismogenic_depth, src.lower_seismogenic_depth,
-#                                                            src.dip, rupt_spacing)
-#             except:
-#                 pass
-#
-#
-#         mesh = surf1.mesh.array
-#         n_points = mesh.shape[1] * mesh.shape[2]
-#         idx = np.argwhere(mesh[2, :, :] <= max_depth)
-#         new_points1 = surf1.mesh.array[:, idx[:, 0], idx[:,1]]
-#
-#         mesh2 = surf2.mesh.array
-#         n_points2 = mesh2.shape[1] * mesh2.shape[2]
-#         idx = np.argwhere(mesh2[2, :, :] <= max_depth)
-#         new_points2 = surf2.mesh.array[:, idx[:, 0], idx[:,1]]
-#         new_points2 = new_points1[new_points2[:,2] != 0]
-#         new_points = np.vstack((new_points1, new_points2))
-#
-#
-#         new_n_points = new_points.shape[1]
-#
-#
-#
-#
-#         ratio = new_points.shape[1] / n_points
-#         rates_m = []
-#         mws = []
-#         for i, j in src.get_annual_occurrence_rates():
-#             mws.append(i)
-#             rates_m.append(j * ratio)
-#
-#         for pp in new_points.T:
-#             cells.append([pp[0], pp[1]])
-#             magnitudes.append(mws)
-#             rates.append(np.array(rates_m) / new_n_points)
-#             src_type.append('simple_fault')
-#
-#     elif isinstance(src, ComplexFaultSource):
-#         surf = ComplexFaultSurface.from_fault_data(src.edges, rupt_spacing)
-#         mesh = surf.mesh.array
-#
-#         n_points = mesh.shape[1] * mesh.shape[2]
-#         idx = np.argwhere(mesh[2, :, :] <= max_depth)
-#         new_points = surf.mesh.array[:, idx[:, 0], idx[:,1]]
-#
-#
-#         new_n_points = new_points.shape[1]
-#         ratio = new_points.shape[1] / n_points
-#         rates_m = []
-#         mws = []
-#         for i, j in src.get_annual_occurrence_rates():
-#             mws.append(i)
-#             rates_m.append(j * ratio)
-#
-#         for pp in new_points.T:
-#             cells.append([pp[0], pp[1]])
-#             magnitudes.append(mws)
-#             rates.append(np.array(rates_m) / new_n_points)
-#             src_type.append('complex_fault')
-#
-#     elif isinstance(src, AreaSource):
-#         poly = Polygon([(i,j) for i,j in zip(src.polygon.lons, src.polygon.lats)])
-#         points = poly.intersection(MeshGrid)
-#         # print(points)
-#         try:
-#             xy = np.array([i.coords.xy for i in points]).squeeze()
-#         except TypeError:
-#             xy = np.array([points.coords.xy]).squeeze().reshape((-1, 2))
-#         counts = src.get_annual_occurrence_rates()
-#         rates = []
-#         magnitudes = []
-#
-#         mws = []
-#         rates_m = []
-#         for i, j in counts:
-#             mws.append(i)
-#             rates_m.append(j)
-#
-#         for k in xy:
-#             if len(k) > 0:
-#                 cells.append([k[0], k[1]])
-#                 magnitudes.append(mws)
-#                 rates.append(np.array(rates_m)/xy.shape[0])
-#                 src_type.append('area_source')
-#
-#
-#     elif isinstance(src, PointSource):
-#
-#         rates_m = []
-#         mws = []
-#         for i, j in src.get_annual_occurrence_rates():
-#             mws.append(i)
-#             rates_m.append(j)
-#         cells.append([src.location.longitude, src.location.latitude])
-#         magnitudes.append(mws)
-#         rates.append(np.array(rates_m))
-#         src_type.append('point_source')
-#
-#     elif isinstance(src, MultiPointSource):
-#
-#         for PointSrc in src:
-#
-#             rates_m = []
-#             mws = []
-#             for i, j in PointSrc.get_annual_occurrence_rates():
-#                 mws.append(i)
-#                 rates_m.append(j)
-#             cells.append([PointSrc.location.longitude, PointSrc.location.latitude])
-#             magnitudes.append(mws)
-#             rates.append(np.array(rates_m))
-#             src_type.append('multipoint_source')
-#
-#     else:
-#         print('another', src.__class__)
-#
-#     return cells, magnitudes, rates, src_type
-#
-
-def project2mesh(mesh_fn, Cells, Magnitudes, Rates, SrcType):
-    mm = []
-    for i in Magnitudes:
-        mm.extend(i)
-    min_mag = np.round(min(mm),1)
-    max_mag = np.round(max(mm),1)
-    dm = 0.2
-
-    mesh = np.genfromtxt(mesh_fn, delimiter=',')
-    magnitudes = cleaner_range(min_mag, max_mag, dm).round(1)
-    data = np.zeros((mesh.shape[0], 6 + len(magnitudes)))
-
-
-    data[:, 0] = np.round(mesh[:, 0] - 0.05, 1)
-    data[:, 1] = np.round(mesh[:, 0] + 0.05, 1)
-    data[:, 2] = np.round(mesh[:, 1] - 0.05, 1)
-    data[:, 3] = np.round(mesh[:, 1] + 0.05, 1)
-    data[:, 4] = np.zeros(mesh.shape[0])
-    data[:, 5] = 30*np.ones(mesh.shape[0])
-    df = pd.DataFrame({'lon': Cells[:, 0], 'lat':Cells[:, 1]})
-    df['coords'] = list(zip(df['lon'], df['lat']))
-    df['coords'] = df['coords'].apply(Point)
-    points = gpd.GeoDataFrame(df, geometry='coords')
-    polygons = []
-    for i in data:
-        polygons.append(Polygon([(i[0], i[2]),
-                                 (i[1]-0.0000001, i[2]),
-                                 (i[1]-0.0000001, i[3]-0.0000001),
-                                 (i[0], i[3]-0.0000001)]))
-
-    grid = gpd.GeoDataFrame({'geometry': polygons})
-    points_in_poly = gpd.tools.sjoin(points, grid, predicate='within', how='left')
-    idxs = points_in_poly.index_right.to_numpy()
-
-    for n, (m, r) in enumerate(zip(Magnitudes, Rates)):
-        if n % 5000 == 0:
-            print('proj', n)
-        try:
-            m_ind = np.argmin(np.abs(magnitudes + 0.001 - m[0]))
-            data[int(idxs[n]), 6 + m_ind: 6 + m_ind + len(r)] += r
-        except:
-            try:
-                dmm = np.diff(m)[0]
-                dm_delta = int(np.round(dm/dmm))
-                ratess = r[::dm_delta]
-                mmms = m[::dm_delta]
-                m_ind = np.argmin(np.abs(magnitudes + 0.001 - mmms[0]))
-                data[int(idxs[n]), 6 + m_ind: 6 + m_ind + len(ratess)] += ratess
-            except:
-                # print('uh')
-                continue
-    # zero_ind = np.argwhere(data[:,  6:].sum(axis=1) == 0 )
-    # for i in zero_ind:
-    #     try:
-    #         data[i, 6:] = data[i+1, 6:]
-    #     except:
-    #         continue
-    return data
 
 if __name__ == '__main__':
 
@@ -345,25 +238,26 @@ if __name__ == '__main__':
                                        'HeA_IF2222222_M40.xml']]
     fsbg = path.join(eshm20_sm, 'fsm_v09', 'fs_ver09e_model_aGR_SRL_ML_fMthr.xml')
     asm = path.join(eshm20_sm, 'asm_v12e', 'asm_ver12e_winGT_fs017_hi_abgrs_maxmag_upp.xml')
+    ssm = path.join(eshm20_sm, 'ssm_v09',
+               'seis_ver12b_fMthr_asm_ver12e_winGT_fs017_agbrs_point.xml')
+
+
+    eshm13_sm = path.join(dir_module, 'eshm_test', 'eshm13',
+                          'SHARE_OQ_input_20140807')
+    seifa = path.join(eshm13_sm, 'seifa_model_test.xml')
+    fsbg = path.join(eshm13_sm, 'faults_backg_source_model_test.xml')
+
 
     reg = path.join(dir_module, 'eshm_test', 'regions', 'region_final.txt')
+    csep_reg = CartesianGrid2D.from_origins(np.loadtxt(reg))
 
-    reg_origins = np.loadtxt(reg)
-    reg_origins = reg_origins[np.logical_and((22 < reg_origins[:, 0]),
-                                             (28 > reg_origins[:, 0]))]
-    reg_origins = reg_origins[np.logical_and((35 < reg_origins[:, 1]),
-                                             (42 > reg_origins[:, 1]))]
 
-    csep_reg = CartesianGrid2D.from_origins(reg_origins)
-
-    # sm = sm_lib.parse_source_model([fsbg, eshm20_subd_interface[-1], asm])
-    sm = sm_lib.parse_source_model([asm])
+    sm = sm_lib.parse_source_model([seifa])
     srcs = sm_lib.parse_srcs(sm)
+    data = return_rates(srcs, region=csep_reg, min_mag=4.7, max_mag=8.1, dm=0.2)
+    ax = data.plot(plot_args={'region_border': False})
 
-    data = return_rates(srcs, csep_reg)
-    ax = data.plot(plot_args={'region_border': False, 'clim': [-6, -2]})
-
-    ax.plot(*data.region.midpoints().T, '.', ms=10)
+    # ax.plot(*data.region.midpoints().T, '.', ms=10)
     plt.show()
 
     # if reg is given

@@ -45,6 +45,8 @@ def parse_source_model(fname):
     :param fname: path or list of paths (list, string)
     :return: returns the Openquake source model object
     """
+
+    log.info('Parsing source model: %s' % fname)
     parser = sourceconverter.SourceConverter(
         area_source_discretization=10,
         width_of_mfd_bin=0.1
@@ -115,7 +117,7 @@ def parse_srcs(source_model, trt=None):
     :param trt: Tectonic region type  #todo pending
     :return:
     """
-
+    log.info('Collecting sources from source model')
     sources = []
     if not isinstance(source_model, list):
         source_model = [source_model]
