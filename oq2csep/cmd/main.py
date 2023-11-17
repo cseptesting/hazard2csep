@@ -2,13 +2,13 @@ import numpy
 
 from oq2csep import __version__
 from oq2csep import region_lib
-
+from oq2csep import sm_lib
 import logging
 import argparse
 log = logging.getLogger('oq2csepLogger')
 
 
-def region(files, intersect=False, dest=False, plot=False, **_):
+def region(files, intersect=False, dest=False, plot=False, fill=False, **_):
 
     log.info(f'OpenQuake to CSEP v{__version__} | Region parsing')
 
@@ -29,11 +29,11 @@ def region(files, intersect=False, dest=False, plot=False, **_):
         else:
             log.info(f'\t{files}')
         log.info('Parsing source models')
-        src_model = region_lib.parse_source_model(files)
+        src_model = sm_lib.parse_source_model(files)
         log.info('Getting source elements')
-        srcs = region_lib.parse_srcs(src_model)
+        srcs = sm_lib.parse_srcs(src_model)
         log.info('Computing region')
-        grid, csep_reg = region_lib.parse_region(srcs)
+        grid, csep_reg = region_lib.parse_region(srcs, fill=fill)
         if not dest:
             dest = 'region.txt'
         numpy.savetxt(dest, grid, fmt='%.2f')
@@ -53,11 +53,13 @@ def oq2csep():
     parser.add_argument('func', type=str,
                         choices=['region', 'project'],
                         help='Source model parsing options')
-    parser.add_argument('files', metavar='files', type=str,
+    parser.add_argument('files', metavar='files', type=str,     # todo write arg docs
                         nargs='+',
                         help='path to source model files')
     parser.add_argument('-i', '--intersect', action='store_true',
                         default=False, help="Timestamp results")
+    parser.add_argument('-f', '--fill',
+                        default=False, help="File to save the grid")
     parser.add_argument('-d', '--dest',
                         default=False, help="File to save the grid")
     parser.add_argument('-p', '--plot', action='store_true',

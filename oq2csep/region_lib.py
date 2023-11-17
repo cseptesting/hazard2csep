@@ -1,149 +1,24 @@
 import geopandas as gpd
 import pandas as pd
-from openquake.hazardlib import nrml, sourceconverter
 from openquake.hazardlib.source.complex_fault import ComplexFaultSource
 from openquake.hazardlib.source.simple_fault import SimpleFaultSource
 from openquake.hazardlib.source.area import AreaSource
 from openquake.hazardlib.source.point import PointSource
 from openquake.hazardlib.source.multi_point import MultiPointSource
-from openquake.hazardlib.geo.surface import ComplexFaultSurface
-from openquake.hazardlib.geo.line import Line
 import numpy as np
 import matplotlib.pyplot as plt
 import shapely.geometry
 import csep
-import xml.etree.ElementTree as etree
 import cartopy
 from csep.core.regions import CartesianGrid2D
 import logging
 
+from oq2csep.sm_lib import cleaner_range
 
 log = logging.getLogger('oq2csepLogger')
 
 
-def cleaner_range(start, end, h):
-    """ Returns array holding bin edges that doesn't contain floating point
-    wander.
-
-    Floating point wander can occur when repeatedly adding floating point
-    numbers together. The errors propagate and become worse over the sum.
-    This function generates the
-    values on an integer grid and converts back to floating point numbers
-     through multiplication.
-
-     Args:
-        start (float)
-        end (float)
-        h (float): magnitude spacing
-
-    Returns:
-        bin_edges (numpy.ndarray)
-    """
-    # convert to integers to prevent accumulating floating point errors
-    const = 100000
-    start = np.floor(const * start)
-    end = np.floor(const * end)
-    d = const * h
-    return np.arange(start, end + d / 2, d) / const
-
-
-def parse_source_model(fname):
-    """
-    Parse the OpenQuake Source Model file(s).
-    Can be a single file pointint to a source model, or to a compound model
-    consisting of two different files (e.g. point surfaces + subduction faults)
-
-    In case fault conventions were deprecated, attemps to fix them.
-
-    :param fname: path or list of paths (list, string)
-    :return: returns the Openquake source model object
-    """
-    parser = sourceconverter.SourceConverter(
-        area_source_discretization=10,
-        width_of_mfd_bin=0.1
-    )
-
-    if not isinstance(fname, list):
-        fname = [fname]
-    try:
-        src_model_nrml = nrml.read_source_models(fname, parser)
-        src_models = list(src_model_nrml)
-
-    except ValueError:
-        src_models = []
-        for file_ in fname:
-            log.info('Fixing deprecated fault geometries')
-            tree = etree.parse(file_)
-            root = tree.getroot()
-            xmlns = '{http://openquake.org/xmlns/nrml/0.4}'
-            xmlns_gml = "{http://www.opengis.net/gml}"
-            complexfaultsrcs = root[0].findall(f'{xmlns}complexFaultSource')
-            for src in complexfaultsrcs:
-                geom = src.find(f'{xmlns}complexFaultGeometry')
-                top_edge = geom.find(f'{xmlns}faultTopEdge')
-                top_ls = top_edge.find(f'{xmlns_gml}LineString')
-                top_pos = top_ls.find(f'{xmlns_gml}posList')
-                top_line = Line.from_coo(np.fromstring(top_pos.text,
-                                                       sep=' ').reshape(-1, 3))
-
-                bottom_edge = geom.find(f'{xmlns}faultBottomEdge')
-                bottom_ls = bottom_edge.find(f'{xmlns_gml}LineString')
-                bottom_pos = bottom_ls.find(f'{xmlns_gml}posList')
-                bottom_line = Line.from_coo(np.fromstring(bottom_pos.text,
-                                                          sep=' ').reshape(-1, 3))
-
-                try:
-                    ComplexFaultSurface.check_aki_richards_convention(
-                        [top_line, bottom_line])
-
-                except ValueError:
-                    for edge_type in ['faultTopEdge', 'intermediateEdge',
-                                      'faultBottomEdge']:
-                        edge = geom.find(f'{xmlns}{edge_type}')
-                        if edge:
-                            ls = edge.find(f'{xmlns_gml}LineString')
-                            pos = ls.find(f'{xmlns_gml}posList')
-                            array = np.fromstring(pos.text, sep=' ').reshape(-1, 3)
-                            array = np.flipud(array)
-                            pos.text = ' '.join(array.ravel().astype(str))
-
-            vparser = nrml.ValidatingXmlParser(nrml.validators, stop=None)
-            src_model = vparser.parse_bytes(etree.tostring(root))
-            xmlns = src_model.tag.split('}')[0][1:]
-            src_model['xmlns'] = xmlns
-            src_model['xmlns:gml'] = xmlns_gml
-            output = nrml.get_source_model_04(src_model[0], fname,
-                                              converter=parser)
-            src_models.append(output)
-
-    return src_models
-
-
-def parse_srcs(source_model, trt=None):
-    """
-    From a source model, gets all the possible sources in order. If a tectonic
-    region type is passed, return only sources pertaining to the trt.
-
-    :param source_model: OpenQuake Source Model object
-    :param trt: Tectonic region type  #todo pending
-    :return:
-    """
-
-    sources = []
-    if not isinstance(source_model, list):
-        source_model = [source_model]
-
-    for model in source_model:
-        for grp in model.src_groups:
-            for src in grp.sources:
-                sources.append(src)
-
-    src_types = set([i.__class__.__name__ for i in sources])
-    log.info(f'Source types found: {src_types} ')
-    return sources
-
-
-def parse_region(sources, dh=0.1):
+def parse_region(sources, dh=0.1, fill=False):
     """
     Creates a CSEP region from a Source Model. A Lat/Lon uniform grid is
      created from the boundaries of the SM. Active cells are determined if
@@ -194,10 +69,10 @@ def parse_region(sources, dh=0.1):
     y = cleaner_range(np.round(bounds[1], 1) - dh,
                       np.round(bounds[3], 1) + dh, h=dh)
     grid = np.vstack([i.ravel() for i in np.meshgrid(x, y)]).T
-    box_polygons = [shapely.geometry.Polygon(
+    initial_cells = [shapely.geometry.Polygon(
         [(i[0], i[1]), (i[0] + dh, i[1]), (i[0] + dh, i[1] + dh),
          (i[0], i[1] + dh)]) for i in grid]
-    box_geodf = gpd.GeoSeries(box_polygons)
+    initial_region = gpd.GeoSeries(initial_cells)
 
     # Initialize array of active CSEP cells
     tag_cells = np.zeros(len(grid))
@@ -207,7 +82,7 @@ def parse_region(sources, dh=0.1):
         [(i, j) for i, j in zip(src.polygon.lons, src.polygon.lats)])
         for src in [*area_srcs, *sf_srcs, *cf_srcs]]
     for poly in polygons:
-        tag_cells = np.logical_or(tag_cells, box_geodf.intersects(poly))
+        tag_cells = np.logical_or(tag_cells, initial_region.intersects(poly))
 
     # Check which cells are touched by Point-type Sources
     if pointsrc_coords.size > 0:
@@ -216,7 +91,7 @@ def parse_region(sources, dh=0.1):
         df['coords'] = list(zip(df['lon'], df['lat']))
         df['coords'] = df['coords'].apply(shapely.geometry.Point)
         points = gpd.GeoDataFrame(df, geometry='coords')
-        cells = gpd.GeoDataFrame(geometry=box_geodf)
+        cells = gpd.GeoDataFrame(geometry=initial_region)
         points_in_reg = gpd.tools.sjoin(points, cells, predicate='within',
                                         how='left')
         idxs = np.unique(points_in_reg.index_right.to_numpy())
@@ -225,13 +100,46 @@ def parse_region(sources, dh=0.1):
         tag_from_points[idxs] = 1
         tag_cells = np.logical_or(tag_cells, tag_from_points)
 
-    # Crops CSEP grid to those that were touched by sources
+    # Crops CSEP grid to those cells that were touched by sources
     if tag_cells.any():
-        grid = grid[tag_cells]
+        final_region = initial_region[tag_cells]
+    coords = np.array([i.exterior.coords[0] for i in final_region.geometry])
 
-    csep_region = CartesianGrid2D.from_origins(grid, dh=dh)
 
-    return grid, csep_region
+    # If fill holes is True, fill holes in the region
+    if fill:
+        tag_from_holes = np.zeros(len(initial_cells))
+        # Buffing the region by 1/10 of the cell size
+        buff_geodf = gpd.GeoDataFrame(geometry=final_region).buffer(dh/10)
+        # Dissolving the buffered region
+        diss_geodf = gpd.GeoDataFrame(geometry=buff_geodf).dissolve()
+        # Getting any hole in the region
+        interiors = diss_geodf.interiors
+        inner_geoms = []
+        for i in interiors:
+            for j in i:
+                xy = np.array(j.coords.xy).T
+                poly = shapely.geometry.Polygon(xy)
+                inner_geoms.append(poly)
+
+        inner_df = gpd.GeoSeries(inner_geoms)
+
+        for poly in inner_geoms:
+            tag_from_holes = np.logical_or(tag_from_holes,
+                                           initial_region.intersects(poly))
+
+        # ax = diss_geodf.plot(color='blue', alpha=0.2)
+        # inner_df.plot(color='red', ax=ax)
+
+        if tag_from_holes.any():
+            hole_region = initial_region[tag_from_holes]
+            hole_coords = np.array([i.exterior.coords[0]
+                                    for i in hole_region.geometry])
+            coords = np.unique(np.vstack((coords, hole_coords)), axis=0)
+
+    csep_region = CartesianGrid2D.from_origins(coords, dh=dh)
+
+    return coords, csep_region
 
 
 def intersect_region(region1, *args):

@@ -41,11 +41,13 @@ if __name__ == '__main__':
     reg_eshm13_seifa = join(output_dir, 'region_eshm13_seifa.txt')
     reg_eshm13 = join(output_dir, 'region_eshm2013.txt')
 
-    main.region(ESHM13_PATH['as'], dest=reg_eshm13_as, plot=True)
-    main.region(ESHM13_PATH['fsbg'], dest=reg_eshm13_fsbg, plot=True)
-    main.region(ESHM13_PATH['seifa'], dest=reg_eshm13_seifa, plot=True)
-    main.region([reg_eshm13_as, reg_eshm13_fsbg, reg_eshm13_seifa],
-                dest=reg_eshm13, intersect=True, plot=True)
+    # main.region(ESHM13_PATH['as'], dest=reg_eshm13_as, plot=True, fill=True)
+    # main.region(ESHM13_PATH['fsbg'], dest=reg_eshm13_fsbg, plot=True,
+    #             fill=True)
+    # main.region(ESHM13_PATH['seifa'], dest=reg_eshm13_seifa, plot=True,
+    #             fill=True)
+    # main.region([reg_eshm13_as, reg_eshm13_fsbg, reg_eshm13_seifa],
+    #             dest=reg_eshm13, intersect=True, plot=True)
 
     reg_eshm20_as = join(output_dir, 'region_eshm20_as.txt')
     reg_eshm20_fsbg = join(output_dir, 'region_eshm20_fsbg.txt')
@@ -55,7 +57,7 @@ if __name__ == '__main__':
     main.region([reg_eshm20_as, reg_eshm20_fsbg],
                 dest=reg_eshm20, intersect=True, plot=True)
 
-    reg_final = 'region_final.txt'
+    reg_final = join(output_dir, 'region_final.txt')
     main.region([reg_eshm13, reg_eshm20],
                 dest=reg_final, intersect=True, plot=True)
 
