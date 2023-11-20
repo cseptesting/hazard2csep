@@ -35,16 +35,16 @@ if __name__ == '__main__':
 
     output_dir = join(dir_script, 'regions')
     os.makedirs(output_dir, exist_ok=True)
-
+    #
     reg_eshm13_as = join(output_dir, 'region_eshm13_as.txt')
     reg_eshm13_fsbg = join(output_dir,'region_eshm13_fsbg.txt')
     reg_eshm13_seifa = join(output_dir, 'region_eshm13_seifa.txt')
     reg_eshm13 = join(output_dir, 'region_eshm2013.txt')
-
+    #
     main.region(ESHM13_PATH['as'], dest=reg_eshm13_as,
                 plot=True, fill=True)
     main.region(ESHM13_PATH['fsbg'], dest=reg_eshm13_fsbg,
-                plot=True,fill=True)
+                plot=True, fill=True)
     main.region(ESHM13_PATH['seifa'], dest=reg_eshm13_seifa,
                 plot=True,fill=True)
     main.region([reg_eshm13_as, reg_eshm13_fsbg, reg_eshm13_seifa],
@@ -53,8 +53,10 @@ if __name__ == '__main__':
     reg_eshm20_as = join(output_dir, 'region_eshm20_as.txt')
     reg_eshm20_fsbg = join(output_dir, 'region_eshm20_fsbg.txt')
     reg_eshm20 = join(output_dir, 'region_eshm20.txt')
-    main.region(ESHM20_PATH['as'], dest=reg_eshm20_as, plot=True)
-    main.region(ESHM20_PATH['fsbg'], dest=reg_eshm20_fsbg, plot=True)
+    main.region(ESHM20_PATH['as'], dest=reg_eshm20_as, plot=True,
+                fill=True)
+    main.region(ESHM20_PATH['fsbg'], dest=reg_eshm20_fsbg, plot=True,
+                fill=True)
     main.region([reg_eshm20_as, reg_eshm20_fsbg],
                 dest=reg_eshm20, intersect=True, plot=True)
 

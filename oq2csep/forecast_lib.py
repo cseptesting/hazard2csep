@@ -8,16 +8,13 @@ from openquake.hazardlib.source.point import PointSource
 from openquake.hazardlib.source.multi_point import MultiPointSource
 from openquake.hazardlib.geo.surface import (ComplexFaultSurface,
                                              SimpleFaultSurface)
-from openquake.hazardlib.mfd import (TruncatedGRMFD, EvenlyDiscretizedMFD,
-                                     TaperedGRMFD)
 
 import numpy as np
 from oq2csep import region_lib
 import matplotlib.pyplot as plt
 from os import path
-from shapely.geometry import Polygon, Point, MultiPoint
+from shapely.geometry import Polygon, Point
 import geopandas as gpd
-import pandas as pd
 from oq2csep import sm_lib
 
 import logging
@@ -165,10 +162,10 @@ def project_mfd(rates, magnitudes):
 
     return grid_rates
 
+
 def return_rates(sources, region=None, min_mag=4.7, max_mag=8.1, dm=0.2):
 
     magnitudes = sm_lib.cleaner_range(min_mag, max_mag, dm).round(1)
-
 
     # Get source by type
     point_srcs = [src for src in sources if isinstance(src, PointSource)]
@@ -191,7 +188,7 @@ def return_rates(sources, region=None, min_mag=4.7, max_mag=8.1, dm=0.2):
 
     # Initialize forecast data
     csep_gdf = gpd.GeoDataFrame({'geometry': csep_grid})
-    forecast_data = np.zeros((len(csep_grid), len(magnitudes)))  # todo magnitudes bins
+    forecast_data = np.zeros((len(csep_grid), len(magnitudes)))
 
     # Pair source type with functions
     src2func_map = ((sf_srcs, get_rate_simple_fault),
@@ -213,17 +210,34 @@ def return_rates(sources, region=None, min_mag=4.7, max_mag=8.1, dm=0.2):
         # Allocate rates to grid cells
         for i, ((indices, frac), rate) in enumerate(zip(poly2csep, rates)):
             if indices.size > 0:
-                total_rate = np.sum([j for k, j in rate])  # todo
-
-                print([i[0] for i in rate])
-                total_rate = total_rate * frac
                 rate_mags = project_mfd(rate, magnitudes)
-
                 forecast_data[indices] += rate_mags
 
-    a = GriddedForecast(data=forecast_data.reshape(-1, 1), region=region,
-                        magnitudes=[5.])
+    a = GriddedForecast(data=forecast_data, region=region,
+                        magnitudes=magnitudes)
     return a
+
+
+def write_forecast(forecast, dest='forecast.txt',
+                   fmt="csep", depths=[0, 30], dh=0.1):
+
+    log.info(f'Writing forecast to {dest}')
+
+    data = forecast.data
+    magnitudes = forecast.magnitudes
+    points = forecast.region.origins()
+
+    cells = np.vstack((points[:, 0], points[:, 0] + dh, points[:, 1],
+                       points[:, 1] + dh)).T
+    depths = np.vstack((depths[0]*np.ones(points.shape[0]),
+                        depths[1]*np.ones(points.shape[0]))).T
+
+    header = ('lon_min lon_max lat_min lat_max depth_min depth_max ' +
+              ' '.join([str(i) for i in magnitudes]))
+    np.savetxt(dest, np.hstack((cells, depths, data)),
+               fmt=6*['%.1f'] + len(magnitudes)*['%.16e'],
+               header=header, comments='')
+    log.info(' > Total events: %.4f' % np.sum(data))
 
 
 if __name__ == '__main__':
@@ -236,6 +250,9 @@ if __name__ == '__main__':
                                        'CyA_IF2222222_M40.xml',
                                        'GiA_IF2222222_M40.xml',
                                        'HeA_IF2222222_M40.xml']]
+
+
+
     fsbg = path.join(eshm20_sm, 'fsm_v09', 'fs_ver09e_model_aGR_SRL_ML_fMthr.xml')
     asm = path.join(eshm20_sm, 'asm_v12e', 'asm_ver12e_winGT_fs017_hi_abgrs_maxmag_upp.xml')
     ssm = path.join(eshm20_sm, 'ssm_v09',
@@ -257,103 +274,5 @@ if __name__ == '__main__':
     data = return_rates(srcs, region=csep_reg, min_mag=4.7, max_mag=8.1, dm=0.2)
     ax = data.plot(plot_args={'region_border': False})
 
-    # ax.plot(*data.region.midpoints().T, '.', ms=10)
     plt.show()
-
-    # if reg is given
-    #     reg = read_region()
-    # else:
-    #     reg_get_region(sm)
-    #
-    # # parse sms
-    # # parse srcs
-    # # parse rates
-    # # resample to mws
-    # # project to mesh
-    #
-    #
-    # mesh_fn = 'mesh_europe.csv'
-    # mesh = np.genfromtxt(mesh_fn, delimiter=',')
-    # mesh_shp = MultiPoint([Point(i[0],i[1]) for i in mesh])
-    # rupt_spacing = 3
-    # area_mesh = 8
-    # max_depth = 35
-    # reload = False
-    # mw_bin = 0.1
-    # for filename in files:
-    #
-    #     if reload is False:
-    #
-    #         parser = sourceconverter.SourceConverter(area_source_discretization=area_mesh,
-    #                                                  width_of_mfd_bin=mw_bin)
-    #         if isinstance(filename, list):
-    #             source_list = filename
-    #             filename = filename[-1]
-    #             source_list.extend(subd)
-    #             a = nrml.read_source_models(source_list, parser)
-    #         else:
-    #             source_list = [filename, 'asm_v12e/asm_ver12e_winGT_fs017_twingr.xml']
-    #             source_list.extend(subd)
-    #             a = nrml.read_source_models(source_list, parser)
-    #         src_models = []
-    #         for i in a:
-    #             src_models.append(i)
-    #         Rates = []
-    #         Magnitudes = []
-    #         Cells = []
-    #         SrcType = []
-    #         srcs = []
-    #
-    #         for smm in src_models:
-    #             for sgc in smm:
-    #                 for src in sgc:
-    #                     srcs.append(src)
-    #         for i, src in enumerate(srcs):
-    #             if i % 50 == 0:
-    #                 print('src', i)
-    #             cc, mm, rr, st = return_rates(src, mesh_shp)
-    #             if len(cc) > 0:
-    #                 Cells.extend(cc)
-    #                 Magnitudes.extend(mm)
-    #                 Rates.extend(rr)
-    #                 SrcType.extend(st)
-    #             else:
-    #                 print('ho')
-    #         with open(path.splitext(filename)[0] + '.obj', 'wb') as pick:
-    #             pickle.dump((Cells, Magnitudes, Rates, SrcType), pick)
-    #     else:
-    #         if isinstance(filename, list):
-    #             filename = filename[-1]
-    #         with open(path.splitext(filename)[0] + '.obj', 'rb') as pick:
-    #             Cells, Magnitudes, Rates, SrcType = pickle.load( pick)
-    #
-    #     np.savetxt(path.splitext(filename)[0] + '_original.csv', np.array(Cells), delimiter=',')
-    #
-    #
-    #     plt.scatter([i[0] for i in Cells], [i[1] for i in Cells],
-    #                 c = np.log10([np.sum(i) for i in Rates]), vmin=-8, vmax=-3, s=0.01)
-    #     plt.show()
-    #
-    #     data = project2mesh(mesh_fn, np.array(Cells), Magnitudes, Rates, SrcType)
-    #     plt.scatter((data[:, 0]+data[:, 1])/2., (data[:, 2]+data[:, 3])/2.,
-    #                 c=np.log10(data[:, 6:].sum(axis=1)), s=0.04)
-    #     plt.show()
-    #     mm = []
-    #     for i in Magnitudes:
-    #         mm.extend(i)
-    #     min_mag = min(mm)
-    #     max_mag = max(mm)
-    #     dm = 0.2
-    #     magnitudes = cleaner_range(min_mag, max_mag, dm).round(1)
-    #
-    #     if min(magnitudes) == 4.6:
-    #         magnitudes += 0.1
-    #     elif max(magnitudes) == 4.5:
-    #         magnitudes += 0.2
-    #     elif max(magnitudes) == 4.55:
-    #         magnitudes += 0.15
-    #
-    #     header = 'lon_min,lon_max,lat_min,lat_max,depth_min,depth_max,' + ','.join([f'{i :.1f}' for i in magnitudes[:data.shape[1] -6]])
-    #     fn_csv = path.splitext(filename)[0] + '.csv'
-    #     np.savetxt(f'{fn_csv}', data, delimiter=',', header=header)
 

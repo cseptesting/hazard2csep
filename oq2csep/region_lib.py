@@ -18,6 +18,71 @@ from oq2csep.sm_lib import cleaner_range
 log = logging.getLogger('oq2csepLogger')
 
 
+def fill_holes(coords,
+               final_region=None,
+               dh=0.1):
+
+    bounds = np.array([180, 90, -180, -90])
+
+    bounds = np.array([
+        *np.min([bounds[:2], coords.min(axis=0)], axis=0),
+        *np.max([bounds[2:], coords.max(axis=0)], axis=0)])
+    x = cleaner_range(np.round(bounds[0], 1) - dh,
+                      np.round(bounds[2], 1) + dh, h=dh)
+    y = cleaner_range(np.round(bounds[1], 1) - dh,
+                      np.round(bounds[3], 1) + dh, h=dh)
+
+    initial_grid = np.vstack([i.ravel() for i in np.meshgrid(x, y)]).T
+    initial_cells = [shapely.geometry.Polygon(
+        [(i[0], i[1]), (i[0] + dh, i[1]), (i[0] + dh, i[1] + dh),
+         (i[0], i[1] + dh)]) for i in initial_grid]
+    initial_region = gpd.GeoSeries(initial_cells)
+
+    if final_region is None:
+        final_cells = [shapely.geometry.Polygon(
+            [(i[0], i[1]), (i[0] + dh, i[1]), (i[0] + dh, i[1] + dh),
+             (i[0], i[1] + dh)]) for i in coords]
+        final_region = gpd.GeoSeries(final_cells)
+
+    tag_from_holes = np.zeros(len(initial_cells))
+
+    # Buffing the region by 1/10 of the cell size
+    buff_geodf = gpd.GeoDataFrame(geometry=final_region).buffer(dh/10.)
+    # Dissolving the buffered region
+    diss_geodf = gpd.GeoDataFrame(geometry=buff_geodf).dissolve()
+
+    # Getting any hole in the region
+
+    inner_polygons = []
+    for elem in diss_geodf.geometry:
+
+        int_rings = []
+        if isinstance(elem, shapely.geometry.MultiPolygon):
+            for poly in elem.geoms:
+                int_rings.append(poly.interiors)
+        else:
+            int_rings.append(elem.interiors)
+
+        for ring in int_rings:
+            if ring:
+                for j in ring:
+                    xy = np.array(j.coords.xy).T
+                    poly = shapely.geometry.Polygon(xy)
+                    inner_polygons.append(poly)
+
+    for poly in inner_polygons:
+        tag_from_holes = np.logical_or(tag_from_holes,
+                                       initial_region.intersects(poly))
+
+    if tag_from_holes.any():
+        hole_region = initial_region[tag_from_holes]
+        hole_coords = np.array([i.exterior.coords[0]
+                                for i in hole_region.geometry])
+        coords = np.unique(np.vstack((coords, hole_coords)), axis=0)
+
+    return coords
+
+
 def parse_region(sources, dh=0.1, fill=False):
     """
     Creates a CSEP region from a Source Model. A Lat/Lon uniform grid is
@@ -105,37 +170,51 @@ def parse_region(sources, dh=0.1, fill=False):
         final_region = initial_region[tag_cells]
     coords = np.array([i.exterior.coords[0] for i in final_region.geometry])
 
-
-    # If fill holes is True, fill holes in the region
+    # Fill holes in the region
     if fill:
-        tag_from_holes = np.zeros(len(initial_cells))
-        # Buffing the region by 1/10 of the cell size
-        buff_geodf = gpd.GeoDataFrame(geometry=final_region).buffer(dh/10)
-        # Dissolving the buffered region
-        diss_geodf = gpd.GeoDataFrame(geometry=buff_geodf).dissolve()
-        # Getting any hole in the region
-        interiors = diss_geodf.interiors
-        inner_geoms = []
-        for i in interiors:
-            for j in i:
-                xy = np.array(j.coords.xy).T
-                poly = shapely.geometry.Polygon(xy)
-                inner_geoms.append(poly)
+        coords = fill_holes(coords, final_region, dh)
 
-        inner_df = gpd.GeoSeries(inner_geoms)
-
-        for poly in inner_geoms:
-            tag_from_holes = np.logical_or(tag_from_holes,
-                                           initial_region.intersects(poly))
-
-        # ax = diss_geodf.plot(color='blue', alpha=0.2)
-        # inner_df.plot(color='red', ax=ax)
-
-        if tag_from_holes.any():
-            hole_region = initial_region[tag_from_holes]
-            hole_coords = np.array([i.exterior.coords[0]
-                                    for i in hole_region.geometry])
-            coords = np.unique(np.vstack((coords, hole_coords)), axis=0)
+        # tag_from_holes = np.zeros(len(initial_cells))
+        # # Buffing the region by 1/10 of the cell size
+        # buff_geodf = gpd.GeoDataFrame(geometry=final_region).buffer(dh/10.)
+        # # Dissolving the buffered region
+        # diss_geodf = gpd.GeoDataFrame(geometry=buff_geodf).dissolve()
+        # diss_geodf.to_file('asd.shp', driver='ESRI Shapefile')
+        #
+        # # Getting any hole in the region
+        #
+        # inner_polygons = []
+        # for elem in diss_geodf.geometry:
+        #
+        #     int_rings = []
+        #     if isinstance(elem, shapely.geometry.MultiPolygon):
+        #         for poly in elem:
+        #             int_rings.append(poly.interiors)
+        #     else:
+        #         int_rings.append(elem.interiors)
+        #
+        #     for ring in int_rings:
+        #         if ring:
+        #             for j in ring:
+        #                 print(j)
+        #                 xy = np.array(j.coords.xy).T
+        #                 poly = shapely.geometry.Polygon(xy)
+        #                 inner_polygons.append(poly)
+        #
+        # inner_df = gpd.GeoSeries(inner_polygons)
+        #
+        # for poly in inner_polygons:
+        #     tag_from_holes = np.logical_or(tag_from_holes,
+        #                                    initial_region.intersects(poly))
+        #
+        # # ax = diss_geodf.plot(color='blue', alpha=0.2)
+        # # inner_df.plot(color='red', ax=ax)
+        #
+        # if tag_from_holes.any():
+        #     hole_region = initial_region[tag_from_holes]
+        #     hole_coords = np.array([i.exterior.coords[0]
+        #                             for i in hole_region.geometry])
+        #     coords = np.unique(np.vstack((coords, hole_coords)), axis=0)
 
     csep_region = CartesianGrid2D.from_origins(coords, dh=dh)
 
@@ -193,7 +272,12 @@ def plot_region(grid, fname):
 
     fig = plt.figure()
     ax = fig.add_subplot(111, projection=cartopy.crs.PlateCarree())
-    dh = np.diff(np.unique(grid[:, 0])).max()
+    coords = np.unique(grid[:, 0])
+    if coords.size > 1:
+        dh = np.diff(np.sort(coords)).max()
+    else:
+        dh = np.diff(np.sort(np.unique(grid[:, 1]))).max()
+
     extent = [grid[:, 0].min() - dh, grid[:, 0].max() + dh,
               grid[:, 1].min() - dh, grid[:, 1].max() + dh]
     ax = csep.utils.plots.plot_basemap(ax=ax,

@@ -1,10 +1,16 @@
-import numpy
+import os
+import logging
+import argparse
 
+import numpy
+import matplotlib.pyplot as plt
+
+import csep
 from oq2csep import __version__
 from oq2csep import region_lib
 from oq2csep import sm_lib
-import logging
-import argparse
+from oq2csep import forecast_lib
+
 log = logging.getLogger('oq2csepLogger')
 
 
@@ -47,6 +53,50 @@ def region(files, intersect=False, dest=False, plot=False, fill=False, **_):
 
     log.info('Finalized')
 
+
+def project(files, region=False, min_mag=4.7, max_mag=8, dm=0.2,
+            dest=False, plot=False, **_):
+
+    log.info(f'OpenQuake to CSEP v{__version__} | Rate projection')
+
+    log.info('Projecting source models:')
+    if isinstance(files, list):
+        for file in files:
+            log.info(f'\t{file}')
+    else:
+        log.info(f'\t{files}')
+    if region:
+        log.info(f'Loading region: {region}')
+        csep_reg = csep.core.regions.CartesianGrid2D.from_origins(
+            numpy.loadtxt(region)
+        )
+
+    src_model = sm_lib.parse_source_model(files)
+    srcs = sm_lib.parse_srcs(src_model)
+    forecast = forecast_lib.return_rates(srcs,
+                                         region=csep_reg,
+                                         min_mag=min_mag,
+                                         max_mag=max_mag,
+                                         dm=dm)
+    if plot:
+        log.info(f'Plotting forecast')
+        if dest is False:
+            dest = 'projected_forecast.png'
+        else:
+            dest = dest.replace('.txt', '.png')
+
+        forecast.plot(plot_args={'region_border': False})
+        plt.savefig(dest)
+
+        data_m65 = forecast.data[:, forecast.magnitudes > 6.5].sum(axis=1)
+        csep.utils.plots.plot_spatial_dataset(
+            forecast.region.get_cartesian(data_m65),
+            forecast.region,
+            plot_args={'region_border': False})
+        plt.savefig(dest.replace('.png', '_m65.png'))
+
+    log.info('Finalized')
+    return forecast
 
 def oq2csep():
     parser = argparse.ArgumentParser(argument_default=argparse.SUPPRESS)
