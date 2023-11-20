@@ -36,12 +36,10 @@ if __name__ == '__main__':
     os.makedirs(output_dir, exist_ok=True)
     region = join(dir_script, 'regions', 'region_final.txt')
 
-
-
-    # main.project(ESHM13_PATH['fsbg'],
-    #              region=reg_eshm13_as,
-    #              dest=join(output_dir, 'eshm13_fsbg.txt'),
-    #              plot=True)
+    main.project(ESHM13_PATH['fsbg'],
+                 region=region,
+                 dest=join(output_dir, 'eshm13_fsbg.txt'),
+                 plot=True)
     # main.region(ESHM13_PATH['seifa'], dest=reg_eshm13_seifa,
     #             plot=True,fill=True)
     #
