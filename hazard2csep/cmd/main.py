@@ -1,3 +1,4 @@
+import os
 import logging
 import argparse
 
@@ -5,12 +6,12 @@ import numpy
 import matplotlib.pyplot as plt
 
 import csep
-from oq2csep import __version__
-from oq2csep import region_lib
-from oq2csep import sm_lib
-from oq2csep import forecast_lib
+from hazard2csep import __version__
+from hazard2csep import region_lib
+from hazard2csep import sm_lib
+from hazard2csep import forecast_lib
 
-log = logging.getLogger('oq2csepLogger')
+log = logging.getLogger('hazard2csepLogger')
 
 
 def region(files,
@@ -56,13 +57,14 @@ def intersect(files,
     numpy.savetxt(dest, grid, fmt='%.2f')
     log.info(f'Saved region to: {dest}')
 
+
 def project(files,
             projection_region=False,
-            min_mag=4.7,
-            max_mag=8,
+            min_mag=4.5,
+            max_mag=9.0,
             dm=0.2,
             max_depth=100,
-            dest=False,
+            dest='forecast.csv',
             plot=False, **_):
 
     log.info(f'CSEP: OpenQuake reader v{__version__} | Rate projection')
@@ -73,13 +75,15 @@ def project(files,
             log.info(f'\t{file}')
     else:
         log.info(f'\t{files}')
-    if region:
+
+    if projection_region:
         log.info(f'Loading region: {projection_region}')
         csep_reg = csep.core.regions.CartesianGrid2D.from_origins(
             numpy.loadtxt(projection_region)
         )
     else:
         csep_reg = None
+
     src_model = sm_lib.parse_source_model(files)
     srcs = sm_lib.parse_srcs(src_model)
     forecast = forecast_lib.return_rates(srcs,
@@ -89,31 +93,23 @@ def project(files,
                                          dm=dm,
                                          max_depth=max_depth)
 
-    if dest:
-        forecast_lib.write_forecast(forecast, dest)
+    destpath = os.path.split(dest)[0]
+    if destpath:
+        os.makedirs(destpath, exist_ok=True)
+
+    forecast_lib.write_forecast(forecast, dest)
 
     if plot:
         log.info(f'Plotting forecast')
-        if dest is False:
-            dest = 'projected_forecast.png'
-        else:
-            dest = dest.split('.')[0] + '.png'
-
+        dest = dest[::-1].split('.', maxsplit=1)[1][::-1] + '.png'
         forecast.plot(plot_args={'region_border': False})
         plt.savefig(dest)
-
-        data_m65 = forecast.data[:, forecast.magnitudes > 6.5].sum(axis=1)
-        csep.utils.plots.plot_spatial_dataset(
-            forecast.region.get_cartesian(numpy.log10(data_m65)),
-            forecast.region,
-            plot_args={'region_border': False})
-        plt.savefig(dest.replace('.png', '_m65.png'))
 
     log.info('Finalized')
     return forecast
 
 
-def oq2csep():
+def hazard2csep():
     parser = argparse.ArgumentParser(argument_default=argparse.SUPPRESS)
     parser.add_argument('func', type=str,
                         choices=['region', 'project'],

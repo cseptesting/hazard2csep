@@ -1,8 +1,8 @@
 import unittest
 import numpy as np
 import os
-from oq2csep.region_lib import fill_holes, make_region, intersect_region, plot_region
-from oq2csep.sm_lib import parse_source_model, parse_srcs
+from hazard2csep.region_lib import fill_holes, make_region, intersect_region, plot_region
+from hazard2csep.sm_lib import parse_source_model, parse_srcs
 import geopandas as gpd
 import shapely
 

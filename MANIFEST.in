@@ -8,7 +8,7 @@ include LICENSE
 include CREDITS.md
 include CONTRIBUTING.md
 
-graft oq2csep
+graft hazard2csep
 prune docs/_build
 prune docs/referenced/generated
 prune docs/tutorials/

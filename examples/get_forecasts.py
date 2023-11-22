@@ -1,7 +1,7 @@
 import os
 from os.path import join, dirname
-from oq2csep.cmd import main
-from oq2csep.sm_lib import parse_logictree_files
+from hazard2csep.cmd import main
+from hazard2csep.sm_lib import parse_logictree_files
 
 dir_script = dirname(__file__)
 

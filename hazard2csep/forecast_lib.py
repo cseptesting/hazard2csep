@@ -11,17 +11,17 @@ from openquake.hazardlib.geo.surface import (ComplexFaultSurface,
                                              SimpleFaultSurface)
 from openquake.hazardlib.geo.mesh import RectangularMesh
 
+
+from multiprocessing import Pool
 import numpy as np
-from oq2csep import region_lib
-import matplotlib.pyplot as plt
-from os import path
+from hazard2csep import region_lib
 from shapely.geometry import Polygon, Point
 import geopandas as gpd
-from oq2csep import sm_lib
+from hazard2csep import sm_lib
 import pandas
 
 import logging
-log = logging.getLogger('oq2csepLogger')
+log = logging.getLogger('hazard2csepLogger')
 
 
 
@@ -197,7 +197,7 @@ def project_mfd(rates, magnitudes):
 
 
 def return_rates(sources, region=None, min_mag=4.7, max_mag=8.1, dm=0.2,
-                 max_depth=200):
+                 max_depth=200, nproc=None):
 
     magnitudes = sm_lib.cleaner_range(min_mag, max_mag, dm).round(1)
 
@@ -239,6 +239,8 @@ def return_rates(sources, region=None, min_mag=4.7, max_mag=8.1, dm=0.2,
         if len(src_grp) > 0:
             log.info(f'Intersecting {len(polygons)}'
                      f' {src_grp[0].__class__.__name__} with CSEP grid')
+
+
         poly2csep = intersect_geom2grid(polygons, csep_gdf)
 
         # Allocate rates to grid cells
@@ -250,7 +252,6 @@ def return_rates(sources, region=None, min_mag=4.7, max_mag=8.1, dm=0.2,
     a = GriddedForecast(data=forecast_data, region=region,
                         magnitudes=magnitudes)
     return a
-
 
 
 def read_forecast(filename):

@@ -1,6 +1,6 @@
 import logging.config
 
-LOG_NAME = 'oq2csep.log'
+LOG_NAME = 'hazard2csep.log'
 LOGGING_CONFIG = {
     "version": 1,
     "formatters": {
@@ -17,7 +17,7 @@ LOGGING_CONFIG = {
         }
     },
     'loggers': {
-        'oq2csepLogger': {
+        'hazard2csepLogger': {
             'level': 'DEBUG',
             'handlers': ['console'],
             'propagate': False
@@ -38,7 +38,7 @@ def add_fhandler(filename):
     fhandler.setFormatter(formatter)
     fhandler.setLevel(logging.DEBUG)
 
-    logging.getLogger('oq2csepLogger').addHandler(fhandler)
+    logging.getLogger('hazard2csepLogger').addHandler(fhandler)
 
 
 logging.config.dictConfig(LOGGING_CONFIG)

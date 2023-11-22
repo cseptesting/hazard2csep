@@ -6,7 +6,7 @@ from openquake.hazardlib import sourceconverter, nrml
 from openquake.hazardlib.geo import Line, ComplexFaultSurface
 import logging
 
-log = logging.getLogger('oq2csepLogger')
+log = logging.getLogger('hazard2csepLogger')
 
 
 def cleaner_range(start, end, h):

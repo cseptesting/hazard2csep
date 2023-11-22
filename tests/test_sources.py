@@ -5,10 +5,10 @@ import matplotlib.pyplot as plt
 
 from openquake.hazardlib.mfd import TruncatedGRMFD, EvenlyDiscretizedMFD
 
-from oq2csep import region_lib
-from oq2csep import sm_lib
-from oq2csep import forecast_lib
-from oq2csep.cmd import main
+from hazard2csep import region_lib
+from hazard2csep import sm_lib
+from hazard2csep import forecast_lib
+from hazard2csep.cmd import main
 
 _SRC_FOLDERS = [os.path.join(i) for i in [
                                   'area_src',

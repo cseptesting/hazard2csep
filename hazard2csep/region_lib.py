@@ -1,3 +1,4 @@
+import os
 import geopandas as gpd
 import pandas as pd
 from openquake.hazardlib.source.complex_fault import ComplexFaultSource
@@ -12,10 +13,10 @@ import csep
 import cartopy
 from csep.core.regions import CartesianGrid2D
 import logging
+from multiprocessing import Pool
+from hazard2csep.sm_lib import cleaner_range
 
-from oq2csep.sm_lib import cleaner_range
-
-log = logging.getLogger('oq2csepLogger')
+log = logging.getLogger('hazard2csepLogger')
 
 
 def fill_holes(coords,
@@ -153,13 +154,14 @@ def make_region(sources, dh=0.1, fill=False):
         for src in [*area_srcs, *sf_srcs, *cf_srcs]]
 
     if len(polygons) > 0:
-        log.info(f'Intersecting polygons with CSEP region')
+        log.info(f'Intersecting region polygons with CSEP region')
+
     for poly in polygons:
         tag_cells = np.logical_or(tag_cells, initial_region.intersects(poly))
 
     # Check which cells are touched by Point-type Sources
     if pointsrc_coords.size > 0:
-        log.info(f'Intersecting points with CSEP region')
+        log.info(f'Intersecting region points with CSEP region')
         df = pd.DataFrame(
             {'lon': pointsrc_coords[:, 0], 'lat': pointsrc_coords[:, 1]})
         df['coords'] = list(zip(df['lon'], df['lat']))

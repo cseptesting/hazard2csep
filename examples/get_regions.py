@@ -1,6 +1,6 @@
 import os
 from os.path import join, dirname
-from oq2csep.cmd import main
+from hazard2csep.cmd import main
 
 
 dir_script = dirname(__file__)

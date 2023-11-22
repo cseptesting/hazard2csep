@@ -11,7 +11,7 @@ pip install -e .
 or
 
 ```shell
-conda create -n oq2csep
+conda create -n hazard2csep
 conda install -c conda-forge pycsep
 conda install -c conda-forge openquake.engine
 pip install -e .
