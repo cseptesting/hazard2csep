@@ -70,7 +70,8 @@ def project(files, region=False, min_mag=4.7, max_mag=8, dm=0.2,
         csep_reg = csep.core.regions.CartesianGrid2D.from_origins(
             numpy.loadtxt(region)
         )
-
+    else:
+        csep_reg = None
     src_model = sm_lib.parse_source_model(files)
     srcs = sm_lib.parse_srcs(src_model)
     forecast = forecast_lib.return_rates(srcs,
@@ -78,25 +79,30 @@ def project(files, region=False, min_mag=4.7, max_mag=8, dm=0.2,
                                          min_mag=min_mag,
                                          max_mag=max_mag,
                                          dm=dm)
+
+    if dest:
+        forecast_lib.write_forecast(forecast, dest)
+
     if plot:
         log.info(f'Plotting forecast')
         if dest is False:
             dest = 'projected_forecast.png'
         else:
-            dest = dest.replace('.txt', '.png')
+            dest = dest.split('.')[0] + '.png'
 
         forecast.plot(plot_args={'region_border': False})
         plt.savefig(dest)
 
         data_m65 = forecast.data[:, forecast.magnitudes > 6.5].sum(axis=1)
         csep.utils.plots.plot_spatial_dataset(
-            forecast.region.get_cartesian(data_m65),
+            forecast.region.get_cartesian(numpy.log10(data_m65)),
             forecast.region,
             plot_args={'region_border': False})
         plt.savefig(dest.replace('.png', '_m65.png'))
 
     log.info('Finalized')
     return forecast
+
 
 def oq2csep():
     parser = argparse.ArgumentParser(argument_default=argparse.SUPPRESS)

@@ -1,3 +1,4 @@
+import csep.models
 import shapely
 from csep.core.regions import CartesianGrid2D
 from csep.core.forecasts import GriddedForecast
@@ -8,6 +9,7 @@ from openquake.hazardlib.source.point import PointSource
 from openquake.hazardlib.source.multi_point import MultiPointSource
 from openquake.hazardlib.geo.surface import (ComplexFaultSurface,
                                              SimpleFaultSurface)
+from openquake.hazardlib.geo.mesh import RectangularMesh
 
 import numpy as np
 from oq2csep import region_lib
@@ -16,14 +18,14 @@ from os import path
 from shapely.geometry import Polygon, Point
 import geopandas as gpd
 from oq2csep import sm_lib
+import pandas
 
 import logging
 log = logging.getLogger('oq2csepLogger')
 
-max_depth = 50
 
 
-def get_rate_simple_fault(sources, buffer_shp=None):
+def get_rate_simple_fault(sources, max_depth=200, *args, **kwargs):
     """
     Get the rates and polygons from simple fault sources.
     :param sources: list of SimpleFaultSources
@@ -42,47 +44,78 @@ def get_rate_simple_fault(sources, buffer_shp=None):
         mesh_spacing = np.min(np.sum(np.diff(src.fault_trace.coo[:, :2],
                                              axis=0)**2, axis=1)**0.5) * 110.
 
-        surf = SimpleFaultSurface.from_fault_data(
-            src.fault_trace,
-            src.upper_seismogenic_depth,
-            # cut by max depth if fault extends
-            min(src.lower_seismogenic_depth, max_depth),
-            src.dip,
-            # minimum resolution of ~ dh/2
-            max(mesh_spacing, 5))
+        if src.lower_seismogenic_depth <= max_depth:
+            surf = SimpleFaultSurface.from_fault_data(
+                src.fault_trace,
+                src.upper_seismogenic_depth,
+                src.lower_seismogenic_depth,
+                src.dip,
+                # minimum resolution of ~ dh/2
+                max(mesh_spacing, 5))
+            rate = src.get_annual_occurrence_rates()
 
-        rates.append(src.get_annual_occurrence_rates())
+        else:
+            # Surface needs to be cropped and rates scaled
+            surf_0 = SimpleFaultSurface.from_fault_data(
+                src.fault_trace,
+                src.upper_seismogenic_depth,
+                src.lower_seismogenic_depth,
+                src.dip,
+                max(mesh_spacing, 5))
+
+            surf = SimpleFaultSurface.from_fault_data(
+                src.fault_trace,
+                src.upper_seismogenic_depth,
+                # cut by max depth if fault extends
+                max_depth,
+                src.dip,
+                max(mesh_spacing, 5))
+            area_factor = surf.get_area() / surf_0.get_area()
+
+            rate = [(i, j * area_factor) for (i, j)
+                    in src.get_annual_occurrence_rates()]
+
+        rates.append(rate)
         polygons.append(shapely.geometry.Polygon(
                 [(i, j) for i, j in zip(*surf.get_surface_boundaries())]))
 
     return polygons, rates
 
 
-def get_rate_complex_fault(sources):
+def get_rate_complex_fault(sources, max_depth=200, *args, **kwargs):
 
     polygons = []
     rates = []
     for src in sources:
 
         # Select automating spacing according to fault edges resolution
-        rupt_spacing = np.hstack([
-            np.sum(np.diff(i.coo[:, :2],axis=0)**2, axis=1)**0.5 * 110.
-            for i in src.edges]).min()
+        # rupt_spacing = np.hstack([
+        #     np.sum(np.diff(i.coo[:, :2],axis=0)**2, axis=1)**0.5 * 110.
+        #     for i in src.edges]).min()
+        rupt_spacing = 2.
 
-
-        surf = ComplexFaultSurface.from_fault_data(
+        surf_0 = ComplexFaultSurface.from_fault_data(
             src.edges,
             # minimum resolution of ~ dh/2
-            max(rupt_spacing, 5))
+            max(rupt_spacing, 2))
 
-        rates.append(src.get_annual_occurrence_rates())
+        depths = np.array([i[0] for i in surf_0.mesh.depths])
+
+        depth_idx = np.argwhere(depths <= max_depth).squeeze()
+        rec_mesh = RectangularMesh(surf_0.mesh.lons[depth_idx],
+                                   surf_0.mesh.lats[depth_idx],
+                                   surf_0.mesh.depths[depth_idx])
+        surf = ComplexFaultSurface(rec_mesh)
+        area_factor = surf.get_area()/surf_0.get_area()
+        rates.append([(i, j * area_factor) for (i, j)
+                      in src.get_annual_occurrence_rates()])
         polygons.append(shapely.geometry.Polygon(
             [(i, j) for i, j in zip(*surf.get_surface_boundaries())]))
 
     return polygons, rates
 
 
-def get_rate_area_source(sources):
+def get_rate_area_source(sources, *args, **kwargs):
 
     polygons = []
     rates = []
@@ -95,7 +128,7 @@ def get_rate_area_source(sources):
     return polygons, rates
 
 
-def get_rate_point_source(sources):
+def get_rate_point_source(sources, *args, **kwargs):
 
     points = []
     rates = []
@@ -107,7 +140,7 @@ def get_rate_point_source(sources):
     return points, rates
 
 
-def get_rate_mpoint_source(sources):
+def get_rate_mpoint_source(sources, *args, **kwargs):
 
     points = []
     rates = []
@@ -131,7 +164,7 @@ def intersect_geom2grid(geometries, csep_grid):
                 # Get fraction of area of each cell intersecting polygon
                 frac = np.array([csep_grid.iloc[i].intersection(geom).area
                                  for i in idxs]) / geom.area
-                geom2grid_map.append([idxs, frac])
+                geom2grid_map.append([idxs.squeeze(), frac])
 
     elif all(isinstance(geom, Point) for geom in geometries):
 
@@ -163,7 +196,8 @@ def project_mfd(rates, magnitudes):
     return grid_rates
 
 
-def return_rates(sources, region=None, min_mag=4.7, max_mag=8.1, dm=0.2):
+def return_rates(sources, region=None, min_mag=4.7, max_mag=8.1, dm=0.2,
+                 max_depth=200):
 
     magnitudes = sm_lib.cleaner_range(min_mag, max_mag, dm).round(1)
 
@@ -200,7 +234,7 @@ def return_rates(sources, region=None, min_mag=4.7, max_mag=8.1, dm=0.2):
     log.info(f'Processing {len(sources)} sources')
     for src_grp, func in src2func_map:
         # Get rates and polygons per src type
-        polygons, rates = func(src_grp)
+        polygons, rates = func(src_grp, max_depth=max_depth)
 
         if len(src_grp) > 0:
             log.info(f'Intersecting {len(polygons)}'
@@ -211,15 +245,61 @@ def return_rates(sources, region=None, min_mag=4.7, max_mag=8.1, dm=0.2):
         for i, ((indices, frac), rate) in enumerate(zip(poly2csep, rates)):
             if indices.size > 0:
                 rate_mags = project_mfd(rate, magnitudes)
-                forecast_data[indices] += rate_mags
+                forecast_data[indices] += (frac * rate_mags).squeeze()
 
     a = GriddedForecast(data=forecast_data, region=region,
                         magnitudes=magnitudes)
     return a
 
 
-def write_forecast(forecast, dest='forecast.txt',
-                   fmt="csep", depths=[0, 30], dh=0.1):
+
+def read_forecast(filename):
+
+    def is_mag(num):
+        try:
+            m = float(num)
+            if -1 < m < 12.:
+                return True
+            else:
+                return False
+        except ValueError:
+            return False
+
+    with open(filename, 'r') as file_:
+        line = file_.readline()
+        line = file_.readline()
+        print(line.split(','))
+        if len(line.split(',')) > 3:
+            sep = ','
+        else:
+            sep = ' '
+
+    data = pandas.read_csv(filename, sep=sep,
+                           )
+    data.columns = [i.strip() for i in data.columns]
+    magnitudes = np.array([float(i) for i in data.columns if is_mag(i)])
+    rates = data[[i for i in data.columns if is_mag(i)]].to_numpy()
+
+    all_polys = data[
+        ['lon_min', 'lon_max', 'lat_min', 'lat_max']].to_numpy()
+    bboxes = [((i[0], i[2]), (i[0], i[3]), (i[1], i[3]), (i[1], i[2]))
+              for i in all_polys]
+    dh = float(all_polys[0, 3] - all_polys[0, 2])
+
+    try:
+        poly_mask = data['mask']
+    except KeyError:
+        poly_mask = np.ones(len(bboxes))
+
+    region = CartesianGrid2D(
+        [csep.models.Polygon(bbox) for bbox in bboxes], dh, mask=poly_mask)
+
+    return GriddedForecast(data=rates, region=region, magnitudes=magnitudes)
+
+
+
+def write_forecast(forecast, dest='forecast.csv',
+                   fmt="csep", depths=(0, 30), dh=0.1):
 
     log.info(f'Writing forecast to {dest}')
 
@@ -232,47 +312,17 @@ def write_forecast(forecast, dest='forecast.txt',
     depths = np.vstack((depths[0]*np.ones(points.shape[0]),
                         depths[1]*np.ones(points.shape[0]))).T
 
-    header = ('lon_min lon_max lat_min lat_max depth_min depth_max ' +
-              ' '.join([str(i) for i in magnitudes]))
-    np.savetxt(dest, np.hstack((cells, depths, data)),
-               fmt=6*['%.1f'] + len(magnitudes)*['%.16e'],
-               header=header, comments='')
+    if fmt == "csep":
+        header = (
+                'lon_min, lon_max, lat_min, lat_max, depth_min, depth_max, ' +
+                ','.join([str(i) for i in magnitudes]))
+        np.savetxt(dest, np.hstack((cells, depths, data)),
+                   fmt=6*['%.1f'] + len(magnitudes)*['%.16e'],
+                   header=header, comments='', delimiter=',')
     log.info(' > Total events: %.4f' % np.sum(data))
 
 
 if __name__ == '__main__':
 
-    dir_module = path.join(path.dirname(__file__), '..')
-    eshm20_sm = path.join(dir_module, 'eshm_test', 'eshm20', 'oq_computational',
-                 'oq_configuration_eshm20_v12e_region_main/source_models')
-    eshm20_subd_interface = [path.join(eshm20_sm, 'interface_v12b', i)
-                             for i in ['CaA_IF2222222_M40.xml',
-                                       'CyA_IF2222222_M40.xml',
-                                       'GiA_IF2222222_M40.xml',
-                                       'HeA_IF2222222_M40.xml']]
-
-
-
-    fsbg = path.join(eshm20_sm, 'fsm_v09', 'fs_ver09e_model_aGR_SRL_ML_fMthr.xml')
-    asm = path.join(eshm20_sm, 'asm_v12e', 'asm_ver12e_winGT_fs017_hi_abgrs_maxmag_upp.xml')
-    ssm = path.join(eshm20_sm, 'ssm_v09',
-               'seis_ver12b_fMthr_asm_ver12e_winGT_fs017_agbrs_point.xml')
-
-
-    eshm13_sm = path.join(dir_module, 'eshm_test', 'eshm13',
-                          'SHARE_OQ_input_20140807')
-    seifa = path.join(eshm13_sm, 'seifa_model_test.xml')
-    fsbg = path.join(eshm13_sm, 'faults_backg_source_model_test.xml')
-
-
-    reg = path.join(dir_module, 'eshm_test', 'regions', 'region_final.txt')
-    csep_reg = CartesianGrid2D.from_origins(np.loadtxt(reg))
-
-
-    sm = sm_lib.parse_source_model([seifa])
-    srcs = sm_lib.parse_srcs(sm)
-    data = return_rates(srcs, region=csep_reg, min_mag=4.7, max_mag=8.1, dm=0.2)
-    ax = data.plot(plot_args={'region_border': False})
-
-    plt.show()
+    pass
 

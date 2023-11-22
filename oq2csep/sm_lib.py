@@ -1,3 +1,4 @@
+import os.path
 from xml.etree import ElementTree as etree
 
 import numpy as np
@@ -130,3 +131,21 @@ def parse_srcs(source_model, trt=None):
     src_types = set([i.__class__.__name__ for i in sources])
     log.info(f'Source types found: {src_types} ')
     return sources
+
+
+def parse_logictree_files(filename):
+    " only linear filetress with 1 branchset"
+    lt = nrml.read(filename)[0]
+    lts = lt[0]
+
+    if not ('logicTreeBranchSet' in lts.tag):
+        lts = lts[0]
+
+    branches = {}
+    for ltbranch in lts:
+        files = ltbranch[0].text.split(' ')
+        branches[ltbranch.attrib['branchID']] = files
+
+    return os.path.dirname(filename), branches
+    # return os.path.dirname(filename), {i['branchID']: i[0].text.split(' ') for i in lts}
+
