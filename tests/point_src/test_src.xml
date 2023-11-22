@@ -1,0 +1,48 @@
+<?xml version='1.0' encoding='utf-8'?><nrml xmlns:gml="http://www.opengis.net/gml" xmlns="http://openquake.org/xmlns/nrml/0.4">
+    <sourceModel name="Test_ SEDSS SeiFa Crust">
+        <pointSource id="asc234111" name="point" tectonicRegion="Active Shallow Crust">
+            <pointGeometry>
+                <gml:Point>
+                    <gml:pos>27.750 36.450</gml:pos>
+                </gml:Point>
+                <upperSeismoDepth>0.0</upperSeismoDepth>
+                <lowerSeismoDepth>30.0</lowerSeismoDepth>
+            </pointGeometry>
+            <magScaleRel>WC1994</magScaleRel>
+            <ruptAspectRatio>1.0</ruptAspectRatio>
+            <incrementalMFD minMag="4.6" binWidth="0.2">
+                <occurRates>2.761117E-04 1.824252E-04 1.186084E-04 7.448332E-05 4.664686E-05 2.912539E-05 1.812382E-05 1.123489E-05 6.934296E-06 4.258682E-06 2.600436E-06 1.577201E-06 </occurRates>
+            </incrementalMFD>
+            <nodalPlaneDist>
+                <nodalPlane probability="0.20" strike="244.7" dip="60.5" rake="0.0" />
+                <nodalPlane probability="0.75" strike="244.7" dip="60.5" rake="90.0" />
+                <nodalPlane probability="0.05" strike="244.7" dip="60.5" rake="-90.0" />
+            </nodalPlaneDist>
+            <hypoDepthDist>
+            <hypoDepth probability="1.0" depth="13.20" />
+            </hypoDepthDist>
+        </pointSource>
+        <pointSource id="asc234112" name="point" tectonicRegion="Active Shallow Crust">
+            <pointGeometry>
+                <gml:Point>
+                    <gml:pos>27.750 36.550</gml:pos>
+                </gml:Point>
+                <upperSeismoDepth>0.0</upperSeismoDepth>
+                <lowerSeismoDepth>30.0</lowerSeismoDepth>
+            </pointGeometry>
+            <magScaleRel>WC1994</magScaleRel>
+            <ruptAspectRatio>1.0</ruptAspectRatio>
+            <incrementalMFD minMag="4.6" binWidth="0.2">
+                <occurRates>3.034693E-04 2.005002E-04 1.309948E-04 8.356573E-05 5.324135E-05 3.387466E-05 2.152084E-05 1.365053E-05 8.643441E-06 5.462659E-06 3.445287E-06 2.168020E-06 1.360871E-06 </occurRates>
+            </incrementalMFD>
+            <nodalPlaneDist>
+                <nodalPlane probability="0.20" strike="244.7" dip="60.5" rake="0.0" />
+                <nodalPlane probability="0.75" strike="244.7" dip="60.5" rake="90.0" />
+                <nodalPlane probability="0.05" strike="244.7" dip="60.5" rake="-90.0" />
+            </nodalPlaneDist>
+            <hypoDepthDist>
+            <hypoDepth probability="1.0" depth="13.20" />
+            </hypoDepthDist>
+        </pointSource>
+    </sourceModel>
+</nrml>

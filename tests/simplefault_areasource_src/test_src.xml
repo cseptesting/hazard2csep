@@ -1,0 +1,45 @@
+<?xml version='1.0' encoding='UTF-8'?>
+<nrml xmlns:gml="http://www.opengis.net/gml" xmlns="http://openquake.org/xmlns/nrml/0.4">
+  <sourceModel name="Test SHARE ASC Area Source Model"> 
+<simpleFaultSource tectonicRegion="Active Shallow Crust" id="312" name="ITCS027">
+      <simpleFaultGeometry>
+        <gml:LineString>
+          <gml:posList>9.9593321644 44.8880418342 10.0944788135 44.7994970773 10.2296254126 44.7109513196 10.3810377152 44.6825433972 10.4733087122 44.6660914421 10.5932717763 44.6331755319 10.7624081907 44.56773371 10.9583194867 44.4950259075 11.1675278486 44.4873169284 11.3122981963 44.4463330395 11.4570687435 44.4053491504 11.6493729253 44.3200703806 11.8416779662 44.2347926102 12.0339828573 44.1495138392 12.2262895962 44.0642350674 12.3793900188 43.9622703395 12.5324916416 43.8603066107 12.6855934525 43.7583418809 12.8386974464 43.6563771502 12.983897285 43.5982553033 13.1290965021 43.5401324561 13.2163237361 43.4601866658 13.3150788019 43.3139840479 13.4138352361 43.1677824281 13.5125950135 43.0215798065 13.619834437 42.9225060619 13.7270749216 42.8234323165 13.8343164608 42.7243585703</gml:posList>
+        </gml:LineString>
+        <dip>37.5</dip>
+        <upperSeismoDepth>12.0</upperSeismoDepth>
+        <lowerSeismoDepth>20.0</lowerSeismoDepth>
+      </simpleFaultGeometry>
+      <magScaleRel>WC1994</magScaleRel>
+      <ruptAspectRatio>1.0</ruptAspectRatio>
+      <truncGutenbergRichterMFD maxMag="7.4" bValue="0.984" aValue="2.34758" minMag="6.4"/>
+      <rake>90.0</rake>
+    </simpleFaultSource>
+    
+     <areaSource tectonicRegion="Active Shallow Crust" id="1094" name="ITBG068">
+      <areaGeometry>
+        <gml:Polygon>
+          <gml:exterior>
+            <gml:LinearRing>
+              <gml:posList>13.5885329999 42.5223269996 13.151796 43.028217 12.11651 43.793972 11.32331 44.136684 11.148901 44.156877 10.699876 44.208866 9.656718 44.669632 9.2702109999 44.2834279999 8.4755300004 44.7124979997 9.314071 45.265533 9.706941 45.252576 10.164287 45.179739 10.383729 44.892941 10.537289 44.745727 11.13718 44.548515 11.553079 44.507702 12.07572 44.297394 12.270123 44.106453 13.5411560004 43.2942960004</gml:posList>
+            </gml:LinearRing>
+          </gml:exterior>
+        </gml:Polygon>
+        <upperSeismoDepth>0.0</upperSeismoDepth>
+        <lowerSeismoDepth>50.0</lowerSeismoDepth>
+      </areaGeometry>
+      <magScaleRel>WC1994</magScaleRel>
+      <ruptAspectRatio>1.0</ruptAspectRatio>
+      <incrementalMFD binWidth="0.2" minMag="4.7">
+        <occurRates>0.00907173063762 0.00494641039817 0.00269705713325 0.00147058504946 0.000801844484873 0.000437210060145 0.000238391159755 0.000129984074544 7.08745225806e-05</occurRates>
+      </incrementalMFD>
+      <nodalPlaneDist>
+        <nodalPlane strike="0.0" rake="0.0" dip="90.0" probability="1.0"/>
+      </nodalPlaneDist>
+      <hypoDepthDist>
+        <hypoDepth depth="8.5" probability="1.0"/>
+      </hypoDepthDist>
+    </areaSource>
+    
+  </sourceModel>
+</nrml>

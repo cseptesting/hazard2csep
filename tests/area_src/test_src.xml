@@ -1,0 +1,51 @@
+<?xml version="1.0" encoding="utf-8"?>
+<nrml xmlns="http://openquake.org/xmlns/nrml/0.4" xmlns:gml="http://www.opengis.net/gml">
+ <sourceModel name="test_as_model eshm20">
+   <areaSource id="maina_lo_uppITAS317" name="maina_lo_upppITAS317" tectonicRegion="Shallow Default">
+<areaGeometry>
+ <gml:Polygon>
+  <gml:exterior>
+   <gml:LinearRing>
+    <gml:posList>11.8771 43.5213 12.0934 43.7591 12.5126 43.4795 12.8537 43.3394 13.2284 42.8409 13.6163 42.4589 13.8062 42.2226 14.1383 42.0623 14.3221 41.9801 13.9425 41.5187 13.6790 41.6192 13.4931 41.7062 12.9556 42.1543 12.5818 42.9005 12.4399 43.0247 12.2434 43.2609 11.8771 43.5213</gml:posList>
+   </gml:LinearRing>
+  </gml:exterior>
+ </gml:Polygon>
+ <upperSeismoDepth>6.0</upperSeismoDepth>
+ <lowerSeismoDepth>15.0</lowerSeismoDepth>
+</areaGeometry>
+   <magScaleRel>PointMSR</magScaleRel>
+   <ruptAspectRatio>1.0</ruptAspectRatio>
+<truncGutenbergRichterMFD aValue="2.9916 " bValue="0.7192" minMag="4.5" maxMag="8.0"/>
+    <nodalPlaneDist>
+
+<nodalPlane strike="140.28" dip="34.02" rake="90" probability="1.00" />
+    </nodalPlaneDist>
+    <hypoDepthDist>
+      <hypoDepth depth="7.9" probability="1.0" />
+    </hypoDepthDist>
+</areaSource>
+<areaSource id="maina_lo_uppITAS334" name="maina_lo_upppITAS334" tectonicRegion="Shallow Default">
+<areaGeometry>
+ <gml:Polygon>
+  <gml:exterior>
+   <gml:LinearRing>
+    <gml:posList>12.0934 43.7591 12.2298 44.0230 12.4977 43.9136 12.9176 43.7996 13.3401 43.5872 13.6758 43.2597 13.8094 42.9789 13.9052 42.4280 13.8062 42.2226 13.6163 42.4589 13.2284 42.8409 12.8537 43.3394 12.5126 43.4795 12.0934 43.7591</gml:posList>
+   </gml:LinearRing>
+  </gml:exterior>
+ </gml:Polygon>
+ <upperSeismoDepth>8.0</upperSeismoDepth>
+ <lowerSeismoDepth>20.0</lowerSeismoDepth>
+</areaGeometry>
+   <magScaleRel>PointMSR</magScaleRel>
+   <ruptAspectRatio>1.0</ruptAspectRatio>
+<truncGutenbergRichterMFD aValue="2.9051 " bValue="0.7999" minMag="4.5" maxMag="7.6"/>
+    <nodalPlaneDist>
+
+<nodalPlane strike="141.34" dip="33.67" rake="90" probability="1.00" />
+    </nodalPlaneDist>
+    <hypoDepthDist>
+      <hypoDepth depth="13.9" probability="1.0" />
+    </hypoDepthDist>
+</areaSource>
+ </sourceModel>
+</nrml>

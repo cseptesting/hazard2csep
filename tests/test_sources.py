@@ -28,19 +28,6 @@ _REGIONS = [os.path.join('regions', i) for i in [
     'test_multiregion_fill.txt']]
 
 
-def test_region_fill():
-
-    for reg in _REGIONS:
-        coords = np.genfromtxt(reg)
-        new_coords = region_lib.fill_holes(coords, dh=1)
-
-        plt.figure(figsize=(5,5))
-        plt.plot(*coords.T, 'bo', ms=7)
-        plt.plot(*new_coords.T, 'r^', ms=4)
-        filename = reg.replace('.txt', '.png')
-        plt.savefig(filename)
-
-
 def test_regions():
 
     for sm_dir in _SRC_FOLDERS:
@@ -94,13 +81,11 @@ def test_model_projection():
 
     for sm_dir in _SRC_FOLDERS:
 
-        forecast = main.project(os.path.join(sm_dir, 'test_src.xml'),
-                                min_mag=4.7, max_mag=8.1, dm=0.2, plot=True,
-                                dest=os.path.join(sm_dir, 'forecast.csv'))
+        main.project(os.path.join(sm_dir, 'test_src.xml'),
+                     min_mag=4.7, max_mag=8.1, dm=0.2, plot=True,
+                     dest=os.path.join(sm_dir, 'forecast.csv'))
 
 
 if __name__ == '__main__':
     pass
-    # test_regions()
-    # test_rate_projection()
 

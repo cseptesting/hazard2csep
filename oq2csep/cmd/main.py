@@ -1,4 +1,3 @@
-import os
 import logging
 import argparse
 
@@ -14,50 +13,59 @@ from oq2csep import forecast_lib
 log = logging.getLogger('oq2csepLogger')
 
 
-def region(files, intersect=False, dest=False, plot=False, fill=False, **_):
+def region(files,
+           dest=False,
+           plot=False,
+           fill=False, **_):
 
-    log.info(f'OpenQuake to CSEP v{__version__} | Region parsing')
-
-    if intersect:
-        log.info('Intersecting regions from models:')
-        log.info(f'\t{files}')
-        grid, csep_reg = region_lib.intersect_region(*files)
-        if not dest:
-            dest = 'region.txt'
-        numpy.savetxt(dest, grid, fmt='%.2f')
-        log.info(f'Saved region to: {dest}')
-
-    else:
+    log.info(f'CSEP: OpenQuake reader v{__version__} | Region parsing')
+    if isinstance(files, list):
         log.info('Joining regions from models:')
-        if isinstance(files, list):
-            for file in files:
-                log.info(f'\t{file}')
-        else:
-            log.info(f'\t{files}')
-        log.info('Parsing source models')
-        src_model = sm_lib.parse_source_model(files)
-        log.info('Getting source elements')
-        srcs = sm_lib.parse_srcs(src_model)
-        log.info('Computing region')
-        grid, csep_reg = region_lib.parse_region(srcs, fill=fill)
-        if not dest:
-            dest = 'region.txt'
-        numpy.savetxt(dest, grid, fmt='%.2f')
-        log.info(f'Saved region to: {dest}')
+        for file in files:
+            log.info(f'\t> {file}')
+    else:
+        log.info('Creating region from model:')
+        log.info(f'\t{files}')
+    src_model = sm_lib.parse_source_model(files)
+    srcs = sm_lib.parse_srcs(src_model)
+    grid, csep_reg = region_lib.make_region(srcs, fill=fill)
+    if not dest:
+        dest = 'region.txt'
+    numpy.savetxt(dest, grid, fmt='%.2f')
+    log.info(f'Saved region to: {dest}')
 
     if plot:
-        dest = dest.replace('.txt', '.png')
+        dest = dest.split('.')[0] + '.png'
         region_lib.plot_region(grid, dest)
         log.info(f'Saved figure to: {dest}')
-        log.info('Close figure to continue')
 
     log.info('Finalized')
 
 
-def project(files, region=False, min_mag=4.7, max_mag=8, dm=0.2,
-            dest=False, plot=False, **_):
+def intersect(files,
+           dest=False,
+           plot=False,
+           fill=False, **_):
 
-    log.info(f'OpenQuake to CSEP v{__version__} | Rate projection')
+    log.info(f'CSEP: OpenQuake reader v{__version__} | Intersect Regions')
+    log.info('Intersecting regions from models:')
+    log.info(f'\t{files}')
+    grid, csep_reg = region_lib.intersect_region(*files)
+    if not dest:
+        dest = 'region.txt'
+    numpy.savetxt(dest, grid, fmt='%.2f')
+    log.info(f'Saved region to: {dest}')
+
+def project(files,
+            projection_region=False,
+            min_mag=4.7,
+            max_mag=8,
+            dm=0.2,
+            max_depth=100,
+            dest=False,
+            plot=False, **_):
+
+    log.info(f'CSEP: OpenQuake reader v{__version__} | Rate projection')
 
     log.info('Projecting source models:')
     if isinstance(files, list):
@@ -66,9 +74,9 @@ def project(files, region=False, min_mag=4.7, max_mag=8, dm=0.2,
     else:
         log.info(f'\t{files}')
     if region:
-        log.info(f'Loading region: {region}')
+        log.info(f'Loading region: {projection_region}')
         csep_reg = csep.core.regions.CartesianGrid2D.from_origins(
-            numpy.loadtxt(region)
+            numpy.loadtxt(projection_region)
         )
     else:
         csep_reg = None
@@ -78,7 +86,8 @@ def project(files, region=False, min_mag=4.7, max_mag=8, dm=0.2,
                                          region=csep_reg,
                                          min_mag=min_mag,
                                          max_mag=max_mag,
-                                         dm=dm)
+                                         dm=dm,
+                                         max_depth=max_depth)
 
     if dest:
         forecast_lib.write_forecast(forecast, dest)
@@ -114,12 +123,12 @@ def oq2csep():
                         help='path to source model files')
     parser.add_argument('-i', '--intersect', action='store_true',
                         default=False, help="Timestamp results")
-    parser.add_argument('-f', '--fill',
+    parser.add_argument('-f', '--fill',  action='store_true',
                         default=False, help="File to save the grid")
     parser.add_argument('-d', '--dest',
                         default=False, help="File to save the grid")
     parser.add_argument('-p', '--plot', action='store_true',
-                        default=False, help="Plot esults")
+                        default=False, help="Plot results")
     args = parser.parse_args()
     try:
         func = globals()[args.func]

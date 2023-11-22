@@ -215,7 +215,7 @@ def return_rates(sources, region=None, min_mag=4.7, max_mag=8.1, dm=0.2,
             for i in region.polygons]
     # Make region if not given
     else:
-        _, region = region_lib.parse_region(sources, fill=False)
+        _, region = region_lib.make_region(sources, fill=False)
         csep_grid = [shapely.geometry.Polygon(
             [i.points[0], i.points[3], i.points[2], i.points[1]])
             for i in region.polygons]
@@ -295,7 +295,6 @@ def read_forecast(filename):
         [csep.models.Polygon(bbox) for bbox in bboxes], dh, mask=poly_mask)
 
     return GriddedForecast(data=rates, region=region, magnitudes=magnitudes)
-
 
 
 def write_forecast(forecast, dest='forecast.csv',

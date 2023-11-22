@@ -1,0 +1,31 @@
+<?xml version="1.0" encoding="utf-8"?>
+<nrml xmlns:gml="http://www.opengis.net/gml"
+      xmlns="http://openquake.org/xmlns/nrml/0.4">
+
+    <sourceModel name="test_fs_model_eshm20_ver09e_var_Mthr">
+ <simpleFaultSource id="RSCF001" name="RSCF001T" tectonicRegion="Shallow Default">
+            <simpleFaultGeometry>
+                <gml:LineString>
+                    <gml:posList>
+           20.901989 42.332778
+ 20.854934 42.303111
+ 20.810599 42.271252
+ 20.767648 42.238386
+ 20.725879 42.204713
+ 20.679066 42.174919
+ 20.629135 42.148068
+ 20.575181 42.125989
+                    </gml:posList>
+                </gml:LineString>
+                <dip>55.0</dip>
+                <upperSeismoDepth>1.0</upperSeismoDepth>
+                <lowerSeismoDepth>25.0</lowerSeismoDepth>
+            </simpleFaultGeometry>
+            <magScaleRel>Leonard2014_Interplate</magScaleRel>
+            <ruptAspectRatio>2.05</ruptAspectRatio>
+          <truncGutenbergRichterMFD aValue="1.5267"   bValue="0.87"  minMag="6.5"  maxMag="7.5"/>
+            <rake>-75.0</rake>
+        </simpleFaultSource> 
+
+    </sourceModel>
+</nrml>

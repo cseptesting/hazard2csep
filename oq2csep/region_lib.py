@@ -19,9 +19,10 @@ log = logging.getLogger('oq2csepLogger')
 
 
 def fill_holes(coords,
-               final_region=None,
+               # final_region=None,
                dh=0.1):
 
+    log.info(f'Filling holes in the region')
     bounds = np.array([180, 90, -180, -90])
 
     bounds = np.array([
@@ -38,11 +39,11 @@ def fill_holes(coords,
          (i[0], i[1] + dh)]) for i in initial_grid]
     initial_region = gpd.GeoSeries(initial_cells)
 
-    if final_region is None:
-        final_cells = [shapely.geometry.Polygon(
-            [(i[0], i[1]), (i[0] + dh, i[1]), (i[0] + dh, i[1] + dh),
-             (i[0], i[1] + dh)]) for i in coords]
-        final_region = gpd.GeoSeries(final_cells)
+    # if final_region is None:
+    final_cells = [shapely.geometry.Polygon(
+        [(i[0], i[1]), (i[0] + dh, i[1]), (i[0] + dh, i[1] + dh),
+         (i[0], i[1] + dh)]) for i in coords]
+    final_region = gpd.GeoSeries(final_cells)
 
     tag_from_holes = np.zeros(len(initial_cells))
 
@@ -79,11 +80,12 @@ def fill_holes(coords,
         hole_coords = np.array([i.exterior.coords[0]
                                 for i in hole_region.geometry])
         coords = np.unique(np.vstack((coords, hole_coords)), axis=0)
+        coords = coords[np.argsort(coords[:, 1])]
 
     return coords
 
 
-def parse_region(sources, dh=0.1, fill=False):
+def make_region(sources, dh=0.1, fill=False):
     """
     Creates a CSEP region from a Source Model. A Lat/Lon uniform grid is
      created from the boundaries of the SM. Active cells are determined if
@@ -94,7 +96,7 @@ def parse_region(sources, dh=0.1, fill=False):
     :param dh: cell size
     :return:
     """
-
+    log.info('Computing region')
     # Get sources by type
     point_srcs = [src for src in sources if isinstance(src, PointSource)]
     mpoint_srcs = [src for src in sources if isinstance(src, MultiPointSource)]
@@ -128,6 +130,9 @@ def parse_region(sources, dh=0.1, fill=False):
             *np.min([bounds[:2], src.polygon.get_bbox()[:2]], axis=0),
             *np.max([bounds[2:], src.polygon.get_bbox()[2:]], axis=0)])
 
+    log.info('Geographic bounds [lon_min, lat_min, lon_max, lat_max]:')
+    log.info(f'\t> {bounds}')
+
     # Create CSEP Grid from the Source Model's bounds and grid size
     x = cleaner_range(np.round(bounds[0], 1) - dh,
                       np.round(bounds[2], 1) + dh, h=dh)
@@ -146,11 +151,15 @@ def parse_region(sources, dh=0.1, fill=False):
     polygons = [shapely.geometry.Polygon(
         [(i, j) for i, j in zip(src.polygon.lons, src.polygon.lats)])
         for src in [*area_srcs, *sf_srcs, *cf_srcs]]
+
+    if len(polygons) > 0:
+        log.info(f'Intersecting polygons with CSEP region')
     for poly in polygons:
         tag_cells = np.logical_or(tag_cells, initial_region.intersects(poly))
 
     # Check which cells are touched by Point-type Sources
     if pointsrc_coords.size > 0:
+        log.info(f'Intersecting points with CSEP region')
         df = pd.DataFrame(
             {'lon': pointsrc_coords[:, 0], 'lat': pointsrc_coords[:, 1]})
         df['coords'] = list(zip(df['lon'], df['lat']))
@@ -168,53 +177,14 @@ def parse_region(sources, dh=0.1, fill=False):
     # Crops CSEP grid to those cells that were touched by sources
     if tag_cells.any():
         final_region = initial_region[tag_cells]
+    else:
+        final_region = initial_region
+
     coords = np.array([i.exterior.coords[0] for i in final_region.geometry])
 
     # Fill holes in the region
     if fill:
-        coords = fill_holes(coords, final_region, dh)
-
-        # tag_from_holes = np.zeros(len(initial_cells))
-        # # Buffing the region by 1/10 of the cell size
-        # buff_geodf = gpd.GeoDataFrame(geometry=final_region).buffer(dh/10.)
-        # # Dissolving the buffered region
-        # diss_geodf = gpd.GeoDataFrame(geometry=buff_geodf).dissolve()
-        # diss_geodf.to_file('asd.shp', driver='ESRI Shapefile')
-        #
-        # # Getting any hole in the region
-        #
-        # inner_polygons = []
-        # for elem in diss_geodf.geometry:
-        #
-        #     int_rings = []
-        #     if isinstance(elem, shapely.geometry.MultiPolygon):
-        #         for poly in elem:
-        #             int_rings.append(poly.interiors)
-        #     else:
-        #         int_rings.append(elem.interiors)
-        #
-        #     for ring in int_rings:
-        #         if ring:
-        #             for j in ring:
-        #                 print(j)
-        #                 xy = np.array(j.coords.xy).T
-        #                 poly = shapely.geometry.Polygon(xy)
-        #                 inner_polygons.append(poly)
-        #
-        # inner_df = gpd.GeoSeries(inner_polygons)
-        #
-        # for poly in inner_polygons:
-        #     tag_from_holes = np.logical_or(tag_from_holes,
-        #                                    initial_region.intersects(poly))
-        #
-        # # ax = diss_geodf.plot(color='blue', alpha=0.2)
-        # # inner_df.plot(color='red', ax=ax)
-        #
-        # if tag_from_holes.any():
-        #     hole_region = initial_region[tag_from_holes]
-        #     hole_coords = np.array([i.exterior.coords[0]
-        #                             for i in hole_region.geometry])
-        #     coords = np.unique(np.vstack((coords, hole_coords)), axis=0)
+        coords = fill_holes(coords, dh)
 
     csep_region = CartesianGrid2D.from_origins(coords, dh=dh)
 

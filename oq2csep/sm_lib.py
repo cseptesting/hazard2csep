@@ -20,8 +20,8 @@ def cleaner_range(start, end, h):
      through multiplication.
 
      Args:
-        start (float)
-        end (float)
+        start
+        end
         h (float): magnitude spacing
 
     Returns:
@@ -47,7 +47,7 @@ def parse_source_model(fname):
     :return: returns the Openquake source model object
     """
 
-    log.info('Parsing source model: %s' % fname)
+    log.info('Parsing source models')
     parser = sourceconverter.SourceConverter(
         area_source_discretization=10,
         width_of_mfd_bin=0.1
@@ -109,16 +109,15 @@ def parse_source_model(fname):
     return src_models
 
 
-def parse_srcs(source_model, trt=None):
+def parse_srcs(source_model):
     """
     From a source model, gets all the possible sources in order. If a tectonic
     region type is passed, return only sources pertaining to the trt.
 
     :param source_model: OpenQuake Source Model object
-    :param trt: Tectonic region type  #todo pending
     :return:
     """
-    log.info('Collecting sources from source model')
+    log.info('Collecting sources')
     sources = []
     if not isinstance(source_model, list):
         source_model = [source_model]
@@ -129,7 +128,7 @@ def parse_srcs(source_model, trt=None):
                 sources.append(src)
 
     src_types = set([i.__class__.__name__ for i in sources])
-    log.info(f'Source types found: {src_types} ')
+    log.info(f'Source classes found: {src_types} ')
     return sources
 
 
