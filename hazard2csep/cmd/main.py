@@ -112,19 +112,17 @@ def project(files,
 def hazard2csep():
     parser = argparse.ArgumentParser(argument_default=argparse.SUPPRESS)
     parser.add_argument('func', type=str,
-                        choices=['region', 'project'],
+                        choices=['region', 'intersect', 'project'],
                         help='Source model parsing options')
     parser.add_argument('files', metavar='files', type=str,     # todo write arg docs
                         nargs='+',
                         help='path to source model files')
-    parser.add_argument('-i', '--intersect', action='store_true',
-                        default=False, help="Timestamp results")
     parser.add_argument('-f', '--fill',  action='store_true',
-                        default=False, help="File to save the grid")
+                        default=False, help="Fill holes inside a region")
     parser.add_argument('-d', '--dest',
-                        default=False, help="File to save the grid")
+                        help="Destination to save the forecast/grid")
     parser.add_argument('-p', '--plot', action='store_true',
-                        default=False, help="Plot results")
+                        default=False, help="Plot results flag")
     args = parser.parse_args()
     try:
         func = globals()[args.func]
