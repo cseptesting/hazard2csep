@@ -44,8 +44,8 @@ def region(files,
 
 
 def intersect(files,
-           dest=False,
-           plot=False, **_):
+              dest=False,
+              plot=False, **_):
 
     log.info(f'CSEP: OpenQuake reader v{__version__} | Intersect Regions')
     log.info('Intersecting regions from models:')

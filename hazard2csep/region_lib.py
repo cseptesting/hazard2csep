@@ -1,6 +1,7 @@
 import os
 import geopandas as gpd
 import pandas as pd
+from scipy.stats import mode
 from openquake.hazardlib.source.complex_fault import ComplexFaultSource
 from openquake.hazardlib.source.simple_fault import SimpleFaultSource
 from openquake.hazardlib.source.area import AreaSource
@@ -207,20 +208,28 @@ def intersect_region(region1, *args):
 
     if isinstance(region1, str):
         origins = np.loadtxt(region1)
-        region1 = CartesianGrid2D.from_origins(origins)
+        dh1 = mode(np.diff(np.unique(origins[:, 0]))).mode
+        dh2 = mode(np.diff(np.unique(origins[:, 1]))).mode
+        dh = np.min([dh1, dh2])
+
+        region1 = CartesianGrid2D.from_origins(origins, dh=dh)
+
     for reg in regions:
+
         if isinstance(reg, str):
             origins = np.loadtxt(reg)
-            reg = CartesianGrid2D.from_origins(origins)
+            dh1 = mode(np.diff(np.unique(origins[:, 0]))).mode
+            dh2 = mode(np.diff(np.unique(origins[:, 1]))).mode
+            dh = np.min([dh1, dh2])
+            reg = CartesianGrid2D.from_origins(origins, dh=dh)
         other_.append(reg)
 
     reg1_poly = [shapely.geometry.Polygon(
-        [i.points[0], i.points[3], i.points[2], i.points[1]])
+        [i.points[0], i.points[3], i.points[2], i.points[1], i.points[0]])
                     for i in region1.polygons]
     reg1_gdf = gpd.GeoSeries(reg1_poly)
-
     tag_cells = np.ones(len(reg1_poly))
-    for reg2 in other_:
+    for i, reg2 in enumerate(other_):
 
         reg2_points = [shapely.geometry.Point(i) for i in reg2.midpoints()]
         points = gpd.GeoDataFrame(geometry=gpd.GeoSeries(reg2_points))
