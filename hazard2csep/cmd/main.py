@@ -45,8 +45,7 @@ def region(files,
 
 def intersect(files,
            dest=False,
-           plot=False,
-           fill=False, **_):
+           plot=False, **_):
 
     log.info(f'CSEP: OpenQuake reader v{__version__} | Intersect Regions')
     log.info('Intersecting regions from models:')
@@ -56,6 +55,10 @@ def intersect(files,
         dest = 'region.txt'
     numpy.savetxt(dest, grid, fmt='%.2f')
     log.info(f'Saved region to: {dest}')
+    if plot:
+        dest = dest.split('.')[0] + '.png'
+        region_lib.plot_region(grid, dest)
+        log.info(f'Saved figure to: {dest}')
 
 
 def project(files,
