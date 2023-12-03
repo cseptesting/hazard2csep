@@ -78,8 +78,7 @@ def get_rate_simple_fault(sources, max_depth=200, buffer=0, *args, **kwargs):
         rates.append(rate)
         polygons.append(shapely.geometry.Polygon(
                 [(i, j) for i, j in zip(*surf.get_surface_boundaries())]))
-        for i in polygons:
-            print(i.area)
+
     if buffer:
         polygons = [i.buffer(buffer) for i in polygons]
 
