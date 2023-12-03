@@ -25,7 +25,7 @@ log = logging.getLogger('hazard2csepLogger')
 
 
 
-def get_rate_simple_fault(sources, max_depth=200, *args, **kwargs):
+def get_rate_simple_fault(sources, max_depth=200, buffer=0, *args, **kwargs):
     """
     Get the rates and polygons from simple fault sources.
     :param sources: list of SimpleFaultSources
@@ -78,6 +78,10 @@ def get_rate_simple_fault(sources, max_depth=200, *args, **kwargs):
         rates.append(rate)
         polygons.append(shapely.geometry.Polygon(
                 [(i, j) for i, j in zip(*surf.get_surface_boundaries())]))
+        for i in polygons:
+            print(i.area)
+    if buffer:
+        polygons = [i.buffer(buffer) for i in polygons]
 
     return polygons, rates
 
@@ -217,7 +221,7 @@ def project_mfd(rates, magnitudes):
 
 
 def return_rates(sources, region=None, min_mag=4.7, max_mag=8.1, dm=0.2,
-                 max_depth=200, dh=0.1):
+                 max_depth=200, dh=0.1, buffer=0):
 
     magnitudes = sm_lib.cleaner_range(min_mag, max_mag, dm).round(1)
 
@@ -235,7 +239,8 @@ def return_rates(sources, region=None, min_mag=4.7, max_mag=8.1, dm=0.2,
             for i in region.polygons]
     # Make region if not given
     else:
-        _, region = region_lib.make_region(sources, fill=False, dh=dh)
+        _, region = region_lib.make_region(sources, fill=False, dh=dh,
+                                           fault_buffer=buffer)
         csep_grid = [shapely.geometry.Polygon(
             [i.points[0], i.points[3], i.points[2], i.points[1]])
             for i in region.polygons]
@@ -254,7 +259,7 @@ def return_rates(sources, region=None, min_mag=4.7, max_mag=8.1, dm=0.2,
     log.info(f'Processing {len(sources)} sources')
     for src_grp, func in src2func_map:
         # Get rates and polygons per src type
-        polygons, rates = func(src_grp, max_depth=max_depth)
+        polygons, rates = func(src_grp, max_depth=max_depth, buffer=buffer)
 
         if len(src_grp) > 0:
             log.info(f'Intersecting {len(polygons)}'

@@ -68,6 +68,7 @@ def project(files,
             dm=0.2,
             dh=0.1,
             max_depth=100,
+            buffer=0,
             dest='forecast.csv',
             plot=False, **_):
 
@@ -96,6 +97,7 @@ def project(files,
                                          min_mag=min_mag,
                                          max_mag=max_mag,
                                          dm=dm,
+                                         buffer=buffer,
                                          max_depth=max_depth)
 
     destpath = os.path.split(dest)[0]
@@ -107,7 +109,7 @@ def project(files,
     if plot:
         log.info(f'Plotting forecast')
         dest = dest[::-1].split('.', maxsplit=1)[1][::-1] + '.png'
-        forecast.plot(plot_args={'region_border': False})
+        forecast.plot(plot_args={'region_border': False, 'borders': True})
         plt.savefig(dest)
 
     log.info('Finalized')

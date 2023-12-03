@@ -87,7 +87,7 @@ def fill_holes(coords,
     return coords
 
 
-def make_region(sources, dh=0.1, fill=False):
+def make_region(sources, dh=0.1, fault_buffer=0, fill=False):
     """
     Creates a CSEP region from a Source Model. A Lat/Lon uniform grid is
      created from the boundaries of the SM. Active cells are determined if
@@ -158,7 +158,10 @@ def make_region(sources, dh=0.1, fill=False):
         log.info(f'Intersecting region polygons with CSEP region')
 
     for poly in polygons:
-        tag_cells = np.logical_or(tag_cells, initial_region.intersects(poly))
+        if fault_buffer:
+            tag_cells = np.logical_or(tag_cells, initial_region.intersects(poly.buffer(fault_buffer)))
+        else:
+            tag_cells = np.logical_or(tag_cells, initial_region.intersects(poly))
 
     # Check which cells are touched by Point-type Sources
     if pointsrc_coords.size > 0:
