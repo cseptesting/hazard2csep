@@ -66,6 +66,7 @@ def project(files,
             min_mag=4.5,
             max_mag=9.0,
             dm=0.2,
+            dh=0.1,
             max_depth=100,
             dest='forecast.csv',
             plot=False, **_):
@@ -82,8 +83,9 @@ def project(files,
     if projection_region:
         log.info(f'Loading region: {projection_region}')
         csep_reg = csep.core.regions.CartesianGrid2D.from_origins(
-            numpy.loadtxt(projection_region)
+            numpy.loadtxt(projection_region), dh=dh
         )
+
     else:
         csep_reg = None
 

@@ -197,7 +197,7 @@ def project_mfd(rates, magnitudes):
 
 
 def return_rates(sources, region=None, min_mag=4.7, max_mag=8.1, dm=0.2,
-                 max_depth=200, nproc=None):
+                 max_depth=200, dh=0.1):
 
     magnitudes = sm_lib.cleaner_range(min_mag, max_mag, dm).round(1)
 
@@ -215,7 +215,7 @@ def return_rates(sources, region=None, min_mag=4.7, max_mag=8.1, dm=0.2,
             for i in region.polygons]
     # Make region if not given
     else:
-        _, region = region_lib.make_region(sources, fill=False)
+        _, region = region_lib.make_region(sources, fill=False, dh=dh)
         csep_grid = [shapely.geometry.Polygon(
             [i.points[0], i.points[3], i.points[2], i.points[1]])
             for i in region.polygons]
@@ -230,6 +230,7 @@ def return_rates(sources, region=None, min_mag=4.7, max_mag=8.1, dm=0.2,
                     (area_srcs, get_rate_area_source),
                     (point_srcs, get_rate_point_source),
                     (mpoint_srcs, get_rate_mpoint_source))
+    print(csep_gdf)
 
     log.info(f'Processing {len(sources)} sources')
     for src_grp, func in src2func_map:
@@ -239,8 +240,6 @@ def return_rates(sources, region=None, min_mag=4.7, max_mag=8.1, dm=0.2,
         if len(src_grp) > 0:
             log.info(f'Intersecting {len(polygons)}'
                      f' {src_grp[0].__class__.__name__} with CSEP grid')
-
-
         poly2csep = intersect_geom2grid(polygons, csep_gdf)
 
         # Allocate rates to grid cells
