@@ -115,26 +115,47 @@ def get_rate_complex_fault(sources, max_depth=200, *args, **kwargs):
     return polygons, rates
 
 
-def get_rate_area_source(sources, *args, **kwargs):
-
+def get_rate_area_source(sources, max_depth=200, *args, **kwargs):
     polygons = []
     rates = []
     for src in sources:
+        if max_depth < src.upper_seismogenic_depth:
+            continue
+        elif (src.upper_seismogenic_depth < max_depth <
+              src.lower_seismogenic_depth):
+            factor = (
+                 src.lower_seismogenic_depth - src.upper_seismogenic_depth) / (
+                 max_depth - src.upper_seismogenic_depth)
+        else:
+            factor = 1
+
         poly = Polygon([(i, j) for i, j in zip(src.polygon.lons,
                                                src.polygon.lats)])
-        rates.append(src.get_annual_occurrence_rates())
+        rates.append([(i, j * factor) for (i, j)
+                      in src.get_annual_occurrence_rates()])
         polygons.append(poly)
 
     return polygons, rates
 
 
-def get_rate_point_source(sources, *args, **kwargs):
+def get_rate_point_source(sources, max_depth=200, *args, **kwargs):
 
     points = []
     rates = []
     for src in sources:
+        if max_depth < src.upper_seismogenic_depth:
+            continue
+        elif (src.upper_seismogenic_depth < max_depth <
+              src.lower_seismogenic_depth):
+            factor = (
+             src.lower_seismogenic_depth - src.upper_seismogenic_depth) / (
+             max_depth - src.upper_seismogenic_depth)
+        else:
+            factor = 1
+
         point = Point(src.location.longitude, src.location.latitude)
-        rates.append(src.get_annual_occurrence_rates())
+        rates.append([(i, j * factor) for (i, j)
+                      in src.get_annual_occurrence_rates()])
         points.append(point)
 
     return points, rates
