@@ -123,9 +123,8 @@ def get_rate_area_source(sources, max_depth=200, *args, **kwargs):
             continue
         elif (src.upper_seismogenic_depth < max_depth <
               src.lower_seismogenic_depth):
-            factor = (
-                 src.lower_seismogenic_depth - src.upper_seismogenic_depth) / (
-                 max_depth - src.upper_seismogenic_depth)
+            factor = (max_depth - src.upper_seismogenic_depth) / (
+                 src.lower_seismogenic_depth - src.upper_seismogenic_depth)
         else:
             factor = 1
 
