@@ -230,7 +230,6 @@ def return_rates(sources, region=None, min_mag=4.7, max_mag=8.1, dm=0.2,
                     (area_srcs, get_rate_area_source),
                     (point_srcs, get_rate_point_source),
                     (mpoint_srcs, get_rate_mpoint_source))
-    print(csep_gdf)
 
     log.info(f'Processing {len(sources)} sources')
     for src_grp, func in src2func_map:
@@ -268,7 +267,6 @@ def read_forecast(filename):
     with open(filename, 'r') as file_:
         line = file_.readline()
         line = file_.readline()
-        print(line.split(','))
         if len(line.split(',')) > 3:
             sep = ','
         else:
