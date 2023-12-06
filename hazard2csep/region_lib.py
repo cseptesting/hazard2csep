@@ -87,7 +87,8 @@ def fill_holes(coords,
     return coords
 
 
-def make_region(sources, dh=0.1, fault_buffer=0, fill=False):
+def make_region(sources, dh=0.1, fault_buffer=0, fill=False,
+                shapefile : str = False):
     """
     Creates a CSEP region from a Source Model. A Lat/Lon uniform grid is
      created from the boundaries of the SM. Active cells are determined if
@@ -193,6 +194,15 @@ def make_region(sources, dh=0.1, fault_buffer=0, fill=False):
         coords = fill_holes(coords, dh)
 
     csep_region = CartesianGrid2D.from_origins(coords, dh=dh)
+
+    if shapefile:
+        log.info(f'Writing region to {shapefile}')
+        final_polygons = [shapely.geometry.Polygon(
+            [(i[0], i[1]), (i[0] + dh, i[1]), (i[0] + dh, i[1] + dh),
+             (i[0], i[1] + dh)]) for i in coords]
+        final_shp = gpd.GeoDataFrame(geometry=final_polygons)
+        # with open(shapefile, 'w') as file_:
+        final_shp.to_file(shapefile, driver='ESRI Shapefile')
 
     return coords, csep_region
 

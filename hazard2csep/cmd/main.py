@@ -17,7 +17,10 @@ log = logging.getLogger('hazard2csepLogger')
 def region(files,
            dest=False,
            plot=False,
-           fill=False, **_):
+           fill=False,
+           fault_buffer=0,
+           shapefile=False,
+           **_):
 
     log.info(f'CSEP: OpenQuake reader v{__version__} | Region parsing')
     if isinstance(files, list):
@@ -29,7 +32,10 @@ def region(files,
         log.info(f'\t{files}')
     src_model = sm_lib.parse_source_model(files)
     srcs = sm_lib.parse_srcs(src_model)
-    grid, csep_reg = region_lib.make_region(srcs, fill=fill)
+    grid, csep_reg = region_lib.make_region(srcs,
+                                            fault_buffer=fault_buffer,
+                                            fill=fill,
+                                            shapefile=shapefile)
     if not dest:
         dest = 'region.txt'
     numpy.savetxt(dest, grid, fmt='%.2f')
