@@ -5,6 +5,7 @@ import numpy as np
 from openquake.hazardlib import sourceconverter, nrml
 from openquake.hazardlib.geo import Line, ComplexFaultSurface
 import logging
+import geopandas
 
 log = logging.getLogger('hazard2csepLogger')
 
@@ -132,6 +133,24 @@ def parse_srcs(source_model):
     return sources
 
 
+def parse_fault_source_buffer(sources, buffer_shp=None,
+                              column='IDFS'):
+
+    buffers = geopandas.read_file(buffer_shp)
+    for src in sources:
+        buffer_poly = buffers.loc[buffers[column] ==
+                                  src.source_id]
+
+        if len(buffer_poly) != 0:
+            src.buffer_polygon = buffer_poly.geometry.values[-1]
+        else:
+            log.info(f'No buffer found for source {src.source_id}. Assigning '
+                     f'fault surface projection polygon')
+            src.buffer_polygon = src.polygon._polygon2d
+
+    return sources
+
+
 def parse_logictree_files(filename):
     " only linear filetress with 1 branchset"
     lt = nrml.read(filename)[0]
@@ -148,3 +167,11 @@ def parse_logictree_files(filename):
     return os.path.dirname(filename), branches
     # return os.path.dirname(filename), {i['branchID']: i[0].text.split(' ') for i in lts}
 
+#
+# shp = '../eshm_test/eshm20/input_shapefiles/eshm20_input_h_simple_individual_buffer/eshm20_individual_buffer.shp'
+# sm = parse_source_model('../eshm_test/eshm20/oq_computational/oq_configuration_eshm20_v12e_region_main/'
+#                         'source_models/fsm_v09/fs_ver09e_model_aGR_SRL_ML_fMthr.xml')
+#
+# srcs = parse_srcs(sm)[:2]
+#
+# a = parse_fault_source_buffer(srcs, shp)

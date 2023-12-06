@@ -24,7 +24,6 @@ import logging
 log = logging.getLogger('hazard2csepLogger')
 
 
-
 def get_rate_simple_fault(sources, max_depth=200, buffer=0, *args, **kwargs):
     """
     Get the rates and polygons from simple fault sources.
@@ -34,6 +33,7 @@ def get_rate_simple_fault(sources, max_depth=200, buffer=0, *args, **kwargs):
     """
     polygons = []
     rates = []
+
     for src in sources:
 
         # If fault is entirely below max depth, skip
@@ -44,25 +44,17 @@ def get_rate_simple_fault(sources, max_depth=200, buffer=0, *args, **kwargs):
         mesh_spacing = np.min(np.sum(np.diff(src.fault_trace.coo[:, :2],
                                              axis=0)**2, axis=1)**0.5) * 110.
 
-        if src.lower_seismogenic_depth <= max_depth:
-            surf = SimpleFaultSurface.from_fault_data(
-                src.fault_trace,
-                src.upper_seismogenic_depth,
-                src.lower_seismogenic_depth,
-                src.dip,
-                # minimum resolution of ~ dh/2
-                max(mesh_spacing, 5))
-            rate = src.get_annual_occurrence_rates()
+        surf = SimpleFaultSurface.from_fault_data(
+            src.fault_trace,
+            src.upper_seismogenic_depth,
+            src.lower_seismogenic_depth,
+            src.dip,
+            # minimum resolution of ~ dh/2
+            max(mesh_spacing, 5))
+        area_factor = 1
 
-        else:
-            # Surface needs to be cropped and rates scaled
-            surf_0 = SimpleFaultSurface.from_fault_data(
-                src.fault_trace,
-                src.upper_seismogenic_depth,
-                src.lower_seismogenic_depth,
-                src.dip,
-                max(mesh_spacing, 5))
-
+        if src.lower_seismogenic_depth >= max_depth:
+            area_0 = surf.get_area()
             surf = SimpleFaultSurface.from_fault_data(
                 src.fault_trace,
                 src.upper_seismogenic_depth,
@@ -70,16 +62,20 @@ def get_rate_simple_fault(sources, max_depth=200, buffer=0, *args, **kwargs):
                 max_depth,
                 src.dip,
                 max(mesh_spacing, 5))
-            area_factor = surf.get_area() / surf_0.get_area()
+            area_factor = surf.get_area() / area_0
 
-            rate = [(i, j * area_factor) for (i, j)
-                    in src.get_annual_occurrence_rates()]
+        rate = [(i, j * area_factor) for (i, j)
+                in src.get_annual_occurrence_rates()]
 
         rates.append(rate)
-        polygons.append(shapely.geometry.Polygon(
-                [(i, j) for i, j in zip(*surf.get_surface_boundaries())]))
 
-    if buffer:
+        if not hasattr(src, 'buffer_polygon'):
+            polygons.append(shapely.geometry.Polygon(
+                    [(i, j) for i, j in zip(*surf.get_surface_boundaries())]))
+        else:
+            polygons.append(src.buffer_polygon)
+
+    if isinstance(buffer, (int, float)) and buffer != 0:
         polygons = [i.buffer(buffer) for i in polygons]
 
     return polygons, rates
@@ -231,6 +227,10 @@ def return_rates(sources, region=None, min_mag=4.7, max_mag=8.1, dm=0.2,
     sf_srcs = [src for src in sources if isinstance(src, SimpleFaultSource)]
     cf_srcs = [src for src in sources if isinstance(src, ComplexFaultSource)]
 
+    # Get faults' buffer from shapefile
+    if isinstance(buffer, str):
+        sf_srcs = sm_lib.parse_fault_source_buffer(sf_srcs, buffer_shp=buffer)
+
     # Load region
     if region:
         csep_grid = [shapely.geometry.Polygon(
@@ -341,6 +341,18 @@ def write_forecast(forecast, dest='forecast.csv',
                    fmt=6*['%.1f'] + len(magnitudes)*['%.16e'],
                    header=header, comments='', delimiter=',')
     log.info(' > Total events: %.4f' % np.sum(data))
+
+
+# def write_raster(forecast, dest='forecast.tiff', log=True,
+#                  mbin=False, depths=(0, 30), dh=0.1):
+#     data = np.log(forecast.data) if log else forecast.data
+#     magnitudes = forecast.magnitudes
+#     points = forecast.region.origins()
+#
+#     cells = np.vstack((points[:, 0], points[:, 0] + dh, points[:, 1],
+#                        points[:, 1] + dh)).T
+#     depths = np.vstack((depths[0]*np.ones(points.shape[0]),
+#                         depths[1]*np.ones(points.shape[0]))).T
 
 
 if __name__ == '__main__':

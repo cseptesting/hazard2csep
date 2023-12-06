@@ -15,7 +15,8 @@ import cartopy
 from csep.core.regions import CartesianGrid2D
 import logging
 from multiprocessing import Pool
-from hazard2csep.sm_lib import cleaner_range
+from hazard2csep.sm_lib import cleaner_range, parse_fault_source_buffer
+
 
 log = logging.getLogger('hazard2csepLogger')
 
@@ -87,7 +88,10 @@ def fill_holes(coords,
     return coords
 
 
-def make_region(sources, dh=0.1, fault_buffer=0, fill=False,
+def make_region(sources,
+                dh=0.1,
+                fault_buffer=0,
+                fill=False,
                 shapefile : str = False):
     """
     Creates a CSEP region from a Source Model. A Lat/Lon uniform grid is
@@ -106,6 +110,9 @@ def make_region(sources, dh=0.1, fault_buffer=0, fill=False,
     area_srcs = [src for src in sources if isinstance(src, AreaSource)]
     sf_srcs = [src for src in sources if isinstance(src, SimpleFaultSource)]
     cf_srcs = [src for src in sources if isinstance(src, ComplexFaultSource)]
+
+    if isinstance(fault_buffer, str):
+        sf_srcs = parse_fault_source_buffer(sf_srcs, buffer_shp=fault_buffer)
 
     # Set initial bounds
     bounds = np.array([180, 90, -180, -90])
@@ -153,14 +160,24 @@ def make_region(sources, dh=0.1, fault_buffer=0, fill=False,
     # Check which cells are touched by Polygon-type Sources
     polygons = [shapely.geometry.Polygon(
         [(i, j) for i, j in zip(src.polygon.lons, src.polygon.lats)])
-        for src in [*area_srcs, *sf_srcs, *cf_srcs]]
+        for src in [*area_srcs, *cf_srcs]]
+
+    # Add polygons buffers if buffer shapefile is given.
+    if isinstance(fault_buffer, str):
+        polygons.extend([src.buffer_polygon for src in sf_srcs])
+    else:
+        polygons.extend([shapely.geometry.Polygon(
+            [(i, j) for i, j in zip(src.polygon.lons, src.polygon.lats)])
+            for src in sf_srcs])
 
     if len(polygons) > 0:
         log.info(f'Intersecting region polygons with CSEP region')
 
     for poly in polygons:
-        if fault_buffer:
-            tag_cells = np.logical_or(tag_cells, initial_region.intersects(poly.buffer(fault_buffer)))
+        if isinstance(fault_buffer, (int, float)):
+            tag_cells = np.logical_or(
+                tag_cells,
+                initial_region.intersects(poly.buffer(fault_buffer)))
         else:
             tag_cells = np.logical_or(tag_cells, initial_region.intersects(poly))
 
@@ -201,13 +218,12 @@ def make_region(sources, dh=0.1, fault_buffer=0, fill=False,
             [(i[0], i[1]), (i[0] + dh, i[1]), (i[0] + dh, i[1] + dh),
              (i[0], i[1] + dh)]) for i in coords]
         final_shp = gpd.GeoDataFrame(geometry=final_polygons)
-        # with open(shapefile, 'w') as file_:
         final_shp.to_file(shapefile, driver='ESRI Shapefile')
 
     return coords, csep_region
 
 
-def intersect_region(region1, *args):
+def intersect_region(region1, *args, **kwargs):
     """
     Intersects multiple regions to get the common cells between them.
 
@@ -223,17 +239,16 @@ def intersect_region(region1, *args):
         origins = np.loadtxt(region1)
         dh1 = mode(np.diff(np.unique(origins[:, 0]))).mode
         dh2 = mode(np.diff(np.unique(origins[:, 1]))).mode
-        dh = np.min([dh1, dh2])
+        dh = np.nanmin([dh1, dh2])
 
         region1 = CartesianGrid2D.from_origins(origins, dh=dh)
 
     for reg in regions:
-
         if isinstance(reg, str):
             origins = np.loadtxt(reg)
             dh1 = mode(np.diff(np.unique(origins[:, 0]))).mode
             dh2 = mode(np.diff(np.unique(origins[:, 1]))).mode
-            dh = np.min([dh1, dh2])
+            dh = np.nanmin([dh1, dh2])
             reg = CartesianGrid2D.from_origins(origins, dh=dh)
         other_.append(reg)
 
@@ -258,8 +273,22 @@ def intersect_region(region1, *args):
         tag_from_points[idxs] = 1
         tag_cells = np.logical_and(tag_cells, tag_from_points)
 
-    return (region1.origins()[tag_cells],
-            CartesianGrid2D.from_origins(region1.origins()[tag_cells]))
+    origins = region1.origins()[tag_cells]
+    dh1 = mode(np.diff(np.unique(origins[:, 0]))).mode
+    dh2 = mode(np.diff(np.unique(origins[:, 1]))).mode
+    dh = np.nanmin([dh1, dh2])
+    csep_region = CartesianGrid2D.from_origins(origins, dh=dh)
+
+    shapefile = kwargs.get('shapefile', None)
+    if shapefile:
+        log.info(f'Writing region to {shapefile}')
+        final_polygons = [shapely.geometry.Polygon(
+            [(i[0], i[1]), (i[0] + dh, i[1]), (i[0] + dh, i[1] + dh),
+             (i[0], i[1] + dh)]) for i in origins]
+        final_shp = gpd.GeoDataFrame(geometry=final_polygons)
+        final_shp.to_file(shapefile, driver='ESRI Shapefile')
+
+    return origins, csep_region
 
 
 def plot_region(grid, fname):

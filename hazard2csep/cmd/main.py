@@ -51,12 +51,14 @@ def region(files,
 
 def intersect(files,
               dest=False,
-              plot=False, **_):
+              plot=False,
+              shapefile=False,
+              **_):
 
     log.info(f'CSEP: OpenQuake reader v{__version__} | Intersect Regions')
     log.info('Intersecting regions from models:')
     log.info(f'\t{files}')
-    grid, csep_reg = region_lib.intersect_region(*files)
+    grid, csep_reg = region_lib.intersect_region(*files, shapefile=shapefile)
     if not dest:
         dest = 'region.txt'
     numpy.savetxt(dest, grid, fmt='%.2f')
