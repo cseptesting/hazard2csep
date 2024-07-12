@@ -56,7 +56,7 @@ if __name__ == '__main__':
     main.region(ESHM20_PATH['as'], dest=reg_eshm20_as, plot=True,
                 fill=True)
     main.region(ESHM20_PATH['fsbg'], dest=reg_eshm20_fsbg, plot=True,
-                fill=True)
+                fill=True)v
     main.region([reg_eshm20_as, reg_eshm20_fsbg],
                 dest=reg_eshm20, intersect=True, plot=True)
 
