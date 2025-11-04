@@ -117,7 +117,7 @@ def project(files,
     if plot:
         log.info(f'Plotting forecast')
         dest = dest[::-1].split('.', maxsplit=1)[1][::-1] + '.png'
-        forecast.plot(plot_args={'region_border': False, 'borders': True})
+        forecast.plot(plot_args={'region_border': False, 'borders': True, "basemap": "ESRI_terrain"})
         plt.savefig(dest)
 
     log.info('Finalized')
@@ -126,23 +126,39 @@ def project(files,
 
 def hazard2csep():
     parser = argparse.ArgumentParser(argument_default=argparse.SUPPRESS)
-    parser.add_argument('func', type=str,
-                        choices=['region', 'intersect', 'project'],
-                        help='Source model parsing options')
-    parser.add_argument('files', metavar='files', type=str,     # todo write arg docs
-                        nargs='+',
-                        help='path to source model files')
-    parser.add_argument('-f', '--fill',  action='store_true',
-                        default=False, help="Fill holes inside a region")
-    parser.add_argument('-d', '--dest',
-                        help="Destination to save the forecast/grid")
-    parser.add_argument('-p', '--plot', action='store_true',
-                        default=False, help="Plot results flag")
-    args = parser.parse_args()
-    try:
-        func = globals()[args.func]
-        args.__delattr__('func')
+    sub = parser.add_subparsers(dest="func", required=True)
 
-    except AttributeError:
-        raise AttributeError('Function not implemented')
-    func(**vars(args))
+    # project subcommand
+    p = sub.add_parser("project", help="Project source model rates")
+    p.add_argument("files", nargs="+", help="Path(s) to source model files")
+    p.add_argument("-r", "--projection-region", dest="projection_region", help="Path to region origins file")
+    p.add_argument("--min-mag", type=float, default=4.5)
+    p.add_argument("--max-mag", type=float, default=9.0)
+    p.add_argument("--dm", type=float, default=0.2)
+    p.add_argument("--dh", type=float, default=0.1)
+    p.add_argument("--max-depth", type=float, default=100)
+    p.add_argument("--buffer", type=float, default=0)
+    p.add_argument("-d", "--dest", default="forecast.csv")
+    p.add_argument("--plot", action="store_true", default=False)
+
+    # region subcommand (example — add the args that function needs)
+    r = sub.add_parser("region", help="Region operations")
+    r.add_argument("files", nargs="+")
+    r.add_argument("-f", "--fill", action="store_true", default=False)
+    r.add_argument("--dest")
+
+    # intersect subcommand (example)
+    i = sub.add_parser("intersect", help="Intersect operations")
+    i.add_argument("files", nargs="+")
+    i.add_argument("--dest")
+    i.add_argument("--plot", action="store_true", default=False)
+
+    args = parser.parse_args()
+    func_name = args.func
+    kwargs = vars(args)
+    kwargs.pop("func")
+    try:
+        func = globals()[func_name]
+    except KeyError:
+        raise AttributeError("Function not implemented")
+    func(**kwargs)
