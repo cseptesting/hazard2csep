@@ -21,7 +21,7 @@ def region(files,
            fault_buffer=0,
            shapefile=False,
            **_):
-
+    print(fill)
     log.info(f'CSEP: OpenQuake reader v{__version__} | Region parsing')
     if isinstance(files, list):
         log.info('Joining regions from models:')
@@ -144,8 +144,9 @@ def hazard2csep():
     # region subcommand (example — add the args that function needs)
     r = sub.add_parser("region", help="Region operations")
     r.add_argument("files", nargs="+")
+    r.add_argument("-d", "--dest", default="region.txt")
     r.add_argument("-f", "--fill", action="store_true", default=False)
-    r.add_argument("--dest")
+    r.add_argument("--plot", action="store_true", default=True)
 
     # intersect subcommand (example)
     i = sub.add_parser("intersect", help="Intersect operations")

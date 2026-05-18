@@ -1,4 +1,4 @@
-name: hazard2csep
+ : hazard2csep
 channels:
     - conda-forge
     - defaults

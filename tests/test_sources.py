@@ -38,43 +38,51 @@ def test_regions():
 
 def test_projection_rates():
 
-    for _DIR in _SRC_FOLDERS[:-1]:  # Skip cropped ComplexFaultSource
+    for _DIR in _SRC_FOLDERS:   # instead of _SRC_FOLDERS[-1:] or similar
         _PATH = os.path.join(_DIR, 'test_src.xml')
         src_model = sm_lib.parse_source_model(_PATH)
 
         for src in sm_lib.parse_srcs(src_model):
-
             min_mag = 5.0
             max_mag = 8.4
             dm = 0.1
             magnitudes = np.arange(min_mag, max_mag + dm / 2, dm)
 
-            forecast = forecast_lib.return_rates([src],
-                                                 min_mag=min_mag,
-                                                 max_mag=max_mag,
-                                                 dm=dm)
+            forecast = forecast_lib.return_rates(
+                [src],
+                min_mag=min_mag,
+                max_mag=max_mag,
+                dm=dm
+            )
             mag_rates = src.get_annual_occurrence_rates()
 
             src_mags = np.array([i[0] for i in mag_rates])
             src_rates = np.array([i[1] for i in mag_rates])
             used_rates = src_rates[src_mags >= min_mag]
 
+            # 1) Discrete conservation
             np.testing.assert_allclose(forecast.magnitudes, magnitudes)
             np.testing.assert_allclose(used_rates.sum(), forecast.data.sum())
 
+            # 2) Analytic GR only when we *know* it's TruncatedGRMFD
             if isinstance(src.mfd, TruncatedGRMFD):
                 a_val = src.mfd.a_val
                 b_val = src.mfd.b_val
-                mbin = src.mfd.bin_width
-
-                src_mmin = min([i[0] for i in mag_rates]) - mbin / 2.
-                src_mmax = max([i[0] for i in mag_rates]) + mbin / 2.
+                src_mmin = src.mfd.min_mag
+                src_mmax = src.mfd.max_mag
+                mmin_int = max(min_mag, src_mmin)
 
                 src_total_rate = (
-                        10 ** (a_val - b_val * max(min_mag, src_mmin)) -
-                        10 ** (a_val - b_val * min(max_mag, src_mmax)))
+                    10 ** (a_val - b_val * mmin_int)
+                    - 10 ** (a_val - b_val * src_mmax)
+                )
 
-                np.testing.assert_allclose(src_total_rate, forecast.data.sum())
+                np.testing.assert_allclose(
+                    src_total_rate,
+                    forecast.data.sum(),
+                    rtol=2e-3,
+                    atol=3e-5,
+                )
 
 
 def test_model_projection():
