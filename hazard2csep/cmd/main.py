@@ -77,6 +77,7 @@ def project(files,
             dh=0.1,
             max_depth=100,
             buffer=0,
+            point_cell=0,
             dest='forecast.csv',
             plot=False, **_):
 
@@ -106,7 +107,9 @@ def project(files,
                                          max_mag=max_mag,
                                          dm=dm,
                                          buffer=buffer,
-                                         max_depth=max_depth)
+                                         max_depth=max_depth,
+                                         dh=dh,
+                                         point_cell=point_cell)
 
     destpath = os.path.split(dest)[0]
     if destpath:

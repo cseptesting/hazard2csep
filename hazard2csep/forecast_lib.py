@@ -149,9 +149,8 @@ def get_rate_point_source(sources, max_depth=200, *args, **kwargs):
             continue
         elif (src.upper_seismogenic_depth < max_depth <
               src.lower_seismogenic_depth):
-            factor = (
-             src.lower_seismogenic_depth - src.upper_seismogenic_depth) / (
-             max_depth - src.upper_seismogenic_depth)
+            factor = (max_depth - src.upper_seismogenic_depth) / (
+             src.lower_seismogenic_depth - src.upper_seismogenic_depth)
         else:
             factor = 1
 
@@ -206,6 +205,48 @@ def intersect_geom2grid(geometries, csep_grid):
     else:
         raise TypeError('Invalid or non-uniform geometry types')
     return geom2grid_map
+
+
+def points2grid(points, size, origins, dh):
+    """
+    Spread point sources over grid cells by the area overlap of a square cell
+    of side `size` centred on each point.
+
+    Parameters
+    ----------
+    points : list of shapely.geometry.Point
+    size : float
+        Side of the native source cell (degrees).
+    origins : numpy.ndarray
+        Lower-left corners of the grid cells, shape (N, 2).
+    dh : float
+        Grid spacing (degrees).
+
+    Returns
+    -------
+    list of [numpy.ndarray, numpy.ndarray]
+        Cell indices and fractions per point (fractions sum to the share of the
+        native cell inside the grid).
+    """
+    key = {(int(i), int(j)): n for n, (i, j) in
+           enumerate(np.rint(origins / dh).astype(int))}
+    out = []
+    for p in points:
+        x0, x1 = p.x - size / 2, p.x + size / 2
+        y0, y1 = p.y - size / 2, p.y + size / 2
+        ix = range(int(np.floor(x0 / dh + 1e-9)), int(np.ceil(x1 / dh - 1e-9)))
+        iy = range(int(np.floor(y0 / dh + 1e-9)), int(np.ceil(y1 / dh - 1e-9)))
+        idx, frac = [], []
+        for i in ix:
+            fx = max(0., min(x1, (i + 1) * dh) - max(x0, i * dh))
+            for j in iy:
+                fy = max(0., min(y1, (j + 1) * dh) - max(y0, j * dh))
+                n = key.get((i, j))
+                if n is not None and fx * fy > 0:
+                    idx.append(n)
+                    frac.append(fx * fy / size ** 2)
+        out.append([np.array(idx, dtype=int), np.array(frac)[:, None]])
+    return out
 
 
 # def project_mfd(rates, magnitudes):
@@ -326,7 +367,8 @@ def project_mfd(rates, magnitudes, bin_width, method="center"):
 
 
 def return_rates(sources, region=None, min_mag=4.7, max_mag=8.1, dm=0.2,
-                 max_depth=200, dh=0.1, buffer=0, return_diag=False,):
+                 max_depth=200, dh=0.1, buffer=0, return_diag=False,
+                 point_cell=0):
     diagnostics = {"groups": []}
 
     # ... inside each source-group block, after you have
@@ -393,7 +435,10 @@ def return_rates(sources, region=None, min_mag=4.7, max_mag=8.1, dm=0.2,
         if len(src_grp) > 0:
             log.info(f'Intersecting {len(polygons)}'
                      f' {src_grp[0].__class__.__name__} with CSEP grid')
-        poly2csep = intersect_geom2grid(polygons, csep_gdf)
+        if point_cell and func in (get_rate_point_source, get_rate_mpoint_source):
+            poly2csep = points2grid(polygons, point_cell, region.origins(), dh)
+        else:
+            poly2csep = intersect_geom2grid(polygons, csep_gdf)
 
 
         # Allocate rates to grid cells
@@ -417,7 +462,10 @@ def return_rates(sources, region=None, min_mag=4.7, max_mag=8.1, dm=0.2,
                     print("    src_total_rate:", vals.sum())
                     print("    bin_width:", bin_width)
 
-                    rate_mags = project_mfd(rate, csep_magnitudes, bin_width)
+                    try:
+                        rate_mags = project_mfd(rate, csep_magnitudes, bin_width, method="overlap")
+                    except ValueError:
+                        rate_mags = project_mfd(rate, csep_magnitudes, bin_width, method="center")
                     print("    rebinned_total_rate:", rate_mags.sum())
                     diagnostics["groups"].append({
                         "type": "MultiPointSource",  # or whatever group type
