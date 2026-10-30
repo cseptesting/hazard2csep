@@ -1,5 +1,7 @@
 # hazard2csep
 
+[![DOI](https://zenodo.org/badge/701393770.svg)](https://zenodo.org/badge/latestdoi/701393770)
+
 Interface tool between [pyCSEP](https://github.com/SCECcode/pycsep) and [OpenQuake](https://github.com/gem/oq-engine) hazard models.
 
 

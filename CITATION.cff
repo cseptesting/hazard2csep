@@ -1,0 +1,48 @@
+cff-version: 1.2.0
+message: "If you use this software, please cite it using the metadata below."
+title: "hazard2csep: From seismic hazard models to testable earthquake forecasts"
+type: software
+version: 0.1.1
+date-released: 2026-10-30
+license: BSD-3-Clause
+repository-code: "https://github.com/cseptesting/hazard2csep"
+abstract: >-
+  hazard2csep converts the source models of Probabilistic Seismic Hazard
+  Analysis (PSHA), written in the OpenQuake format, into gridded earthquake
+  forecasts that can be evaluated within the Collaboratory for the Study of
+  Earthquake Predictability (CSEP) testing framework. It bridges seismic
+  hazard models, such as the European Seismic Hazard Model (ESHM20), and
+  prospective forecast testing with pyCSEP and floatCSEP.
+keywords:
+  - seismic hazard
+  - earthquake forecasting
+  - forecast evaluation
+  - CSEP
+  - OpenQuake
+  - PSHA
+authors:
+  - family-names: Iturrieta
+    given-names: Pablo
+    orcid: "https://orcid.org/0000-0002-4787-1343"
+    affiliation: "GFZ Helmholtz Centre for Geosciences, Potsdam, Germany"
+  - family-names: Savran
+    given-names: William H.
+    affiliation: "University of Nevada, Reno, United States"
+  - family-names: Khawaja
+    given-names: Asim M.
+    affiliation: "GFZ Helmholtz Centre for Geosciences, Potsdam, Germany"
+  - family-names: Bayona
+    given-names: "José A."
+    affiliation: "School of Earth Sciences, University of Bristol, United Kingdom"
+  - family-names: Schorlemmer
+    given-names: Danijel
+    affiliation: "GFZ Helmholtz Centre for Geosciences, Potsdam, Germany"
+  - family-names: Silva
+    given-names: Fabio
+    affiliation: "Southern California Earthquake Center, University of Southern California, United States"
+  - family-names: Maechling
+    given-names: Philip J.
+    affiliation: "Southern California Earthquake Center, University of Southern California, United States"
+  - family-names: Werner
+    given-names: Maximilian J.
+    affiliation: "School of Earth Sciences, University of Bristol, United Kingdom"

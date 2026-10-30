@@ -1,0 +1,71 @@
+{
+  "title": "hazard2csep: From seismic hazard models to testable earthquake forecasts",
+  "description": "<p><strong>hazard2csep</strong> is a Python application that converts the source models of Probabilistic Seismic Hazard Analysis (PSHA), written in the OpenQuake format, into gridded earthquake forecasts that can be evaluated with the Collaboratory for the Study of Earthquake Predictability (CSEP) testing framework. It bridges seismic hazard models (e.g., the European Seismic Hazard Model ESHM20) and prospective forecast testing with <a href=\"https://github.com/SCECcode/pycsep\">pyCSEP</a> and <a href=\"https://github.com/cseptesting/floatcsep\">floatCSEP</a>.</p><p>Main functionalities:</p><ul><li>Read, create and merge the spatial-magnitude regions of source model components (area sources, faults, background seismicity).</li><li>Intersect regions of different source models so that testing is performed on a common region.</li><li>Project source-model rates onto CSEP-style spatial-magnitude grids, producing testable forecast files.</li></ul><p>hazard2csep was developed within the EU project Geo-INQUIRE (Grant Agreement No. 101058518) and is used to test the components of the European Seismic Hazard Model (ESHM20) against observed seismicity, as part of the European Forecast Testing Center (<a href=\"https://eqstats.efehr.org\">eqstats.efehr.org</a>).</p>",
+  "upload_type": "software",
+  "license": "BSD-3-Clause",
+  "access_right": "open",
+  "creators": [
+    {
+      "name": "Iturrieta, Pablo",
+      "affiliation": "GFZ Helmholtz Centre for Geosciences, Potsdam, Germany",
+      "orcid": "0000-0002-4787-1343"
+    },
+    {
+      "name": "Savran, William H.",
+      "affiliation": "University of Nevada, Reno, United States"
+    },
+    {
+      "name": "Khawaja, Asim M.",
+      "affiliation": "GFZ Helmholtz Centre for Geosciences, Potsdam, Germany"
+    },
+    {
+      "name": "Bayona, José A.",
+      "affiliation": "School of Earth Sciences, University of Bristol, United Kingdom"
+    },
+    {
+      "name": "Schorlemmer, Danijel",
+      "affiliation": "GFZ Helmholtz Centre for Geosciences, Potsdam, Germany"
+    },
+    {
+      "name": "Silva, Fabio",
+      "affiliation": "Southern California Earthquake Center, University of Southern California, United States"
+    },
+    {
+      "name": "Maechling, Philip J.",
+      "affiliation": "Southern California Earthquake Center, University of Southern California, United States"
+    },
+    {
+      "name": "Werner, Maximilian J.",
+      "affiliation": "School of Earth Sciences, University of Bristol, United Kingdom"
+    }
+  ],
+  "keywords": [
+    "seismic hazard",
+    "earthquake forecasting",
+    "forecast evaluation",
+    "CSEP",
+    "OpenQuake",
+    "PSHA",
+    "ESHM20",
+    "statistical seismology",
+    "open science"
+  ],
+  "related_identifiers": [
+    {
+      "identifier": "https://github.com/cseptesting/hazard2csep",
+      "relation": "isSupplementTo",
+      "scheme": "url"
+    },
+    {
+      "identifier": "https://eqstats.efehr.org",
+      "relation": "isDescribedBy",
+      "scheme": "url"
+    }
+  ],
+  "grants": [
+    {
+      "id": "10.13039/501100000780::101058518"
+    }
+  ],
+  "version": "0.1.1"
+}
